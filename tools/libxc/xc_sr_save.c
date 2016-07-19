@@ -633,6 +633,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         }
     }
 
+    DPRINTF("SUNNY: Dirty page count is %u", stats.dirty_count);
     rc = send_dirty_pages(ctx, stats.dirty_count + ctx->save.nr_deferred_pages);
     if ( rc )
         goto out;
