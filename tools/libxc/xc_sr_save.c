@@ -1,7 +1,10 @@
 #include <assert.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 #include "xc_sr_common.h"
+
+struct timespec tstart={0,0}, tend={0,0};
 
 /*
  * Writes an Image header and Domain header into the stream.
@@ -583,7 +586,17 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
+    DPRINTF("SUNNY: last iteration, suspending domain");
+    clock_gettime(CLOCK_MONOTONIC, &tstart);
+
     rc = suspend_domain(ctx);
+
+    clock_gettime(CLOCK_MONOTONIC, &tend);
+    DPRINTF("suspend domain took about %.9f seconds\n",
+            ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+            ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
+
+
     if ( rc )
         goto out;
 
