@@ -7,9 +7,9 @@ DT=$(date +"%y-%m-%d")
 INTS=(30)
 RATE=300
 HOME='/home/sundarcs'
-mkdir -p $HOME/Hotcloud16/exp/$DT/$BENCH/$VMS
+mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
 ssh sundarcs@10.0.0.42 "mkdir -p $BENCH"
-DIR=$HOME/Hotcloud16/exp/$DT/$BENCH/
+DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
 
 
 noremus ()
@@ -128,6 +128,22 @@ plot-graph ()
 	scp -r *.pdf sunny@161.253.74.130:~/Dropbox/autobench/
 }
 
+get-remus-results ()
+{
+	for vm in ${VMS[@]}; do
+		echo "Results for $vm"
+		for i in ${INTS[@]}; do
+		    grep 'Request rate' $DIR/$vm/$BENCH-$i.out | awk '{print $3}'
+		    echo -e "Suspend and send dirty time: "
+		    grep suspend_and_send_dirty $DIR/$vm/remus-$BENCH-$i.log | awk '{print $8}' | awk '{sum=sum+$1} END {print sum/NR}'
+		    echo -e "Dirty page count: "
+		    grep dirty_pages $DIR/$vm/remus-$BENCH-$i.log | awk '{print $8}' | awk '{sum=sum+$1} END {print sum/NR}'
+		    echo -e "Dirty page sent time: "
+		    grep Dirty $DIR/$vm/remus-$BENCH-$i.log | awk '{print $8}' | awk '{sum=sum+$1} END {print sum/NR}'
+		done
+	done
+}
+
 main ()
 {
 	for VM in ${VMS[@]}; do
@@ -140,10 +156,10 @@ main ()
 			#remus-remote $VM $interval
 
 			# Remus with netbuf disabled
-			remus-remote-nonet $VM $interval
+			#remus-remote-nonet $VM $interval
 
 			# Remus with netbuf enabled on localhost
-			remus-local $VM $interval
+			#remus-local $VM $interval
 
 			# Remus with netbuf disabled on localhost
 			#remus-local-nonet $VM $interval
@@ -151,8 +167,11 @@ main ()
 		done
 	done
 
-plot-graph $VM $interval
+get-remus-results
+
+#plot-graph $VM $interval
 
 }
 
 main "$@"
+
