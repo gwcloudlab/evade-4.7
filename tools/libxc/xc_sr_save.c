@@ -1,11 +1,12 @@
 #include <assert.h>
 #include <arpa/inet.h>
-
+#include <sys/time.h>
 #include "xc_sr_common.h"
 
 /*
  * Writes an Image header and Domain header into the stream.
  */
+struct timeval start, stop;
 static int write_headers(struct xc_sr_context *ctx, uint16_t guest_type)
 {
     xc_interface *xch = ctx->xch;
@@ -579,10 +580,90 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
-    int rc;
+    int rc = -1, x;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
+ for ( x = 1;
+          ((x < 3) &&
+           (stats.dirty_count > ctx->save.dirty_threshold)); ++x )
+    {
+        gettimeofday(&start, NULL);
+        if ( xc_shadow_control(
+             xch, ctx->domid, XEN_DOMCTL_SHADOW_OP_CLEAN,
+             HYPERCALL_BUFFER(dirty_bitmap), ctx->save.p2m_size,
+             NULL, 0, &stats) != ctx->save.p2m_size )
+        {
+            PERROR("Failed to retrieve logdirty bitmap");
+            rc = -1;
+            goto out;
+        }
+
+        if ( ctx->save.live )
+        {
+            rc = update_progress_string(ctx, &progress_str,
+                                    ctx->save.max_iterations);
+            if ( rc )
+                goto out;
+        }
+        else
+            xc_set_progress_prefix(xch, "Checkpointed save");
+
+        if ( !ctx->save.live && ctx->save.checkpointed == XC_MIG_STREAM_COLO )
+       {
+            rc = colo_merge_secondary_dirty_bitmap(ctx);
+            if ( rc )
+            {
+                PERROR("Failed to get secondary vm's dirty pages");
+                goto out;
+            }
+        }
+
+        /* Sending just the dirty pages and not the deferred pages here */
+        rc = send_dirty_pages(ctx, stats.dirty_count/* + ctx->save.nr_deferred_pages*/);
+        if ( rc )
+            goto out;
+        gettimeofday(&stop, NULL);
+        DPRINTF("The time for iteration %d is: %lu\n", x, (stop.tv_sec * 1000000 + stop.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec));
+    }
+
+    DPRINTF("Suspending Domain Now, starting timer\n");
+
+     rc = suspend_domain(ctx);
+
+    DPRINTF("Domain Suspended\n");
+    gettimeofday(&start, NULL);
+    if ( xc_shadow_control(
+         xch, ctx->domid, XEN_DOMCTL_SHADOW_OP_CLEAN, HYPERCALL_BUFFER(dirty_bitmap), ctx->save.p2m_size, 
+         NULL, 0, &stats) != ctx->save.p2m_size )
+    {
+        PERROR("Failed to retrieve logdirty bitmap");
+        rc = -1;
+        goto out;
+    }
+
+    bitmap_or(dirty_bitmap, ctx->save.deferred_pages, ctx->save.p2m_size);
+
+    if ( !ctx->save.live && ctx->save.checkpointed == XC_MIG_STREAM_COLO )
+    {
+        rc = colo_merge_secondary_dirty_bitmap(ctx);
+        if ( rc )
+        {
+            PERROR("Failed to get secondary vm's dirty pages");
+            goto out;
+        }
+    }
+
+    rc = send_dirty_pages(ctx, stats.dirty_count + ctx->save.nr_deferred_pages);
+    if ( rc )
+        goto out;
+
+    bitmap_clear(ctx->save.deferred_pages, ctx->save.p2m_size);
+    ctx->save.nr_deferred_pages = 0;
+
+    gettimeofday(&stop, NULL);
+    DPRINTF("The time for last iteration is: %lu\n", (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_usec - start.tv_usec));
+/*
     rc = suspend_domain(ctx);
     if ( rc )
         goto out;
@@ -626,7 +707,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 
     bitmap_clear(ctx->save.deferred_pages, ctx->save.p2m_size);
     ctx->save.nr_deferred_pages = 0;
-
+*/
  out:
     xc_set_progress_prefix(xch, NULL);
     free(progress_str);
