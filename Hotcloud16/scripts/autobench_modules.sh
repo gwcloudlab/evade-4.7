@@ -19,7 +19,7 @@ noremus ()
 	# Initially run $BENCH with remus disabled
 	echo "Running no remus"
 	ssh sundarcs@nimbnode42 "sudo xentop -b -d 1 > $BENCH/remus-$BENCH-0-xentop &"
-	echo -e "xentop running on nn11"
+	echo -e "xentop running on nn42"
 	autobench --single_host --host1 ubuntu-xen --uri1 /10K --quiet --low_rate 20 --high_rate $RATE --rate_step 50 --num_call 10 --num_conn 5000 --timeout 5 --file $DIR/$vm/$BENCH-0.out
 	ssh sundarcs@nimbnode42 "sudo pkill xentop"
 	echo -e "xentop killed and $BENCH ran"
@@ -38,7 +38,7 @@ remus-remote ()
 	last_pid=$!
 	echo -e "tailing remus log file"
 	ssh sundarcs@nimbnode42 "sudo xentop -b -d 1 > $BENCH/remus-$BENCH-$i-xentop &"
-	echo -e "xentop running on nn11"
+	echo -e "xentop running on nn42"
 	autobench --single_host --host1 ubuntu-xen --uri1 /10K --quiet --low_rate 300 --high_rate $RATE --rate_step 50 --num_call 10 --num_conn 5000 --timeout 5 --file $DIR/$vm/$BENCH-$i.out
 	ssh sundarcs@nimbnode42 "sudo pkill xentop"
 	echo -e "xentop killed and $BENCH ran"
@@ -60,7 +60,7 @@ remus-remote-nonet ()
 	last_pid=$!
 	echo -e "tailing remus log file"
 	ssh sundarcs@nimbnode42 "sudo xentop -b -d 1 > $BENCH/remus-$BENCH-$i-nonet-xentop &"
-	echo -e "xentop running on nn11"
+	echo -e "xentop running on nn42"
 	autobench --single_host --host1 ubuntu-xen --uri1 /10K --quiet --low_rate 20 --high_rate $RATE --rate_step 50 --num_call 10 --num_conn 5000 --timeout 5 --file $DIR/$vm/$BENCH-$i-nonet.out
 	ssh sundarcs@nimbnode42 "sudo pkill xentop"
 	echo -e "xentop killed and $BENCH ran"
