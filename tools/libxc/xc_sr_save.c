@@ -586,15 +586,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
-    DPRINTF("SUNNY: last iteration, suspending domain");
-    clock_gettime(CLOCK_MONOTONIC, &tstart);
-
     rc = suspend_domain(ctx);
-
-    clock_gettime(CLOCK_MONOTONIC, &tend);
-    DPRINTF("suspend domain took about %.9f seconds\n",
-            ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
-            ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
 
 
     if ( rc )
@@ -832,6 +824,9 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         if ( rc )
             goto err;
 
+        DPRINTF("SUNNY: starting migration, suspending domain");
+        clock_gettime(CLOCK_MONOTONIC, &tstart);
+
         if ( ctx->save.live )
             rc = send_domain_memory_live(ctx);
         else if ( ctx->save.checkpointed != XC_MIG_STREAM_NONE )
@@ -876,6 +871,11 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                     goto err;
                 }
             }
+
+            clock_gettime(CLOCK_MONOTONIC, &tend);
+            DPRINTF("Domain was suspended for %.9f seconds\n",
+                    ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+                    ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
 
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
             if ( rc <= 0 )
