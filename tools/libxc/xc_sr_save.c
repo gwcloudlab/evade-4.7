@@ -5,6 +5,7 @@
 #include "xc_sr_common.h"
 
 struct timespec tstart={0,0}, tend={0,0};
+struct timespec dstart={0,0}, dend={0,0};
 
 /*
  * Writes an Image header and Domain header into the stream.
@@ -626,9 +627,16 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     }
 
     DPRINTF("SUNNY: Dirty page count is %u", stats.dirty_count);
+
+    clock_gettime(CLOCK_MONOTONIC, &dstart);
     rc = send_dirty_pages(ctx, stats.dirty_count + ctx->save.nr_deferred_pages);
     if ( rc )
         goto out;
+
+    clock_gettime(CLOCK_MONOTONIC, &dend);
+    DPRINTF("SUNNY: dirtied_pages send time took %.9f seconds\n",
+            ((double)dend.tv_sec + 1.0e-9*dend.tv_nsec) -
+            ((double)dstart.tv_sec + 1.0e-9*dstart.tv_nsec));
 
     bitmap_clear(ctx->save.deferred_pages, ctx->save.p2m_size);
     ctx->save.nr_deferred_pages = 0;
@@ -873,7 +881,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             }
 
             clock_gettime(CLOCK_MONOTONIC, &tend);
-            DPRINTF("Domain was suspended for %.9f seconds\n",
+            DPRINTF("SUNNY: Domain was suspended for %.9f seconds\n",
                     ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
                     ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
 
