@@ -6,6 +6,8 @@
 
 struct timespec tstart={0,0}, tend={0,0};
 struct timespec dstart={0,0}, dend={0,0};
+struct timespec wstart={0,0}, wend={0,0};
+struct timespec istart={0,0}, iend={0,0};
 
 /*
  * Writes an Image header and Domain header into the stream.
@@ -87,7 +89,7 @@ static int write_batch(struct xc_sr_context *ctx)
     void *guest_mapping = NULL;
     void **guest_data = NULL;
     void **local_pages = NULL;
-    int *errors = NULL, rc = -1;
+    int *errors = NULL, rc = -1, rc_writev = 0;
     unsigned i, p, nr_pages = 0, nr_pages_mapped = 0;
     unsigned nr_pfns = ctx->save.nr_batch_pfns;
     void *page, *orig_page;
@@ -159,6 +161,9 @@ static int write_batch(struct xc_sr_context *ctx)
     {
         guest_mapping = xenforeignmemory_map(xch->fmem,
             ctx->domid, PROT_READ, nr_pages, mfns, errors);
+        /* DPRINTF("SUNNY: Address of Guest mapping %p", &guest_mapping);
+        DPRINTF("SUNNY: Value of Guest mapping %p", guest_mapping);
+        DPRINTF("SUNNY: Guest mapping value %ld\n", *(long*) guest_mapping);*/
         if ( !guest_mapping )
         {
             PERROR("Failed to map guest pages");
@@ -254,7 +259,14 @@ static int write_batch(struct xc_sr_context *ctx)
         }
     }
 
-    if ( writev_exact(ctx->fd, iov, iovcnt) )
+    clock_gettime(CLOCK_MONOTONIC, &istart);
+    rc_writev = writev_exact(ctx->fd, iov, iovcnt);
+    clock_gettime(CLOCK_MONOTONIC, &iend);
+    DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
+            ((double)iend.tv_sec + 1.0e-9*iend.tv_nsec) -
+            ((double)istart.tv_sec + 1.0e-9*istart.tv_nsec));
+    //if ( writev_exact(ctx->fd, iov, iovcnt) )
+    if ( rc_writev )
     {
         PERROR("Failed to write page data to stream");
         goto err;
@@ -285,7 +297,9 @@ static int write_batch(struct xc_sr_context *ctx)
  */
 static int flush_batch(struct xc_sr_context *ctx)
 {
+    xc_interface *xch = ctx->xch;
     int rc = 0;
+    clock_gettime(CLOCK_MONOTONIC, &wstart);
 
     if ( ctx->save.nr_batch_pfns == 0 )
         return rc;
@@ -298,6 +312,11 @@ static int flush_batch(struct xc_sr_context *ctx)
                                     MAX_BATCH_SIZE *
                                     sizeof(*ctx->save.batch_pfns));
     }
+
+    clock_gettime(CLOCK_MONOTONIC, &wend);
+    DPRINTF("SUNNY: flush_batch fn took about %.9f seconds\n",
+            ((double)wend.tv_sec + 1.0e-9*wend.tv_nsec) -
+            ((double)wstart.tv_sec + 1.0e-9*wstart.tv_nsec));
 
     return rc;
 }
@@ -390,7 +409,13 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
         ++written;
     }
 
+//    clock_gettime(CLOCK_MONOTONIC, &wstart);
     rc = flush_batch(ctx);
+/*    clock_gettime(CLOCK_MONOTONIC, &wend);
+    DPRINTF("SUNNY: flush_batch fn took about %.9f seconds\n",
+            ((double)wend.tv_sec + 1.0e-9*wend.tv_nsec) -
+            ((double)wstart.tv_sec + 1.0e-9*wstart.tv_nsec));
+*/
     if ( rc )
         return rc;
 
