@@ -238,7 +238,7 @@ static struct restore_callbacks helper_restore_callbacks;
 
 int main(int argc, char **argv)
 {
-    int r;
+    int r, rc;
     int send_back_fd, recv_fd;
 
 #define NEXTARG (++argv, assert(*argv), *argv)
@@ -292,6 +292,12 @@ int main(int argc, char **argv)
 
         startup("restore");
         setup_signals(SIG_DFL);
+
+        rc = xc_get_domain_restore_params(xch, io_fd, dom, store_evtchn, &store_mfn,
+                              store_domid, console_evtchn, &console_mfn,
+                              console_domid, hvm, pae, superpages,
+                              stream_type,
+                              &helper_restore_callbacks, send_back_fd);
 
         r = xc_domain_restore(xch, io_fd, dom, store_evtchn, &store_mfn,
                               store_domid, console_evtchn, &console_mfn,

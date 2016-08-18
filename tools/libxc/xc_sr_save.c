@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <arpa/inet.h>
 #include <time.h>
-
+#include <stdio.h>
 #include "xc_sr_common.h"
 
 struct timespec tstart={0,0}, tend={0,0};
@@ -72,6 +72,202 @@ static int write_checkpoint_record(struct xc_sr_context *ctx)
     return write_record(ctx, &checkpoint);
 }
 
+#if 0
+int populate_pfns(struct xc_sr_context *ctx, unsigned count,
+                  const xen_pfn_t *original_pfns, const uint32_t *types)
+{
+    xc_interface *xch = ctx->xch;
+    xen_pfn_t *mfns = malloc(count * sizeof(*mfns)),
+        *pfns = malloc(count * sizeof(*pfns));
+    unsigned i, nr_pfns = 0;
+    int rc = -1;
+
+    if ( !mfns || !pfns )
+    {
+        ERROR("Failed to allocate %zu bytes for populating the physmap",
+              2 * count * sizeof(*mfns));
+        goto err;
+    }
+
+    for ( i = 0; i < count; ++i )
+    {
+        if ( (!types || (types &&
+                         (types[i] != XEN_DOMCTL_PFINFO_XTAB &&
+                          types[i] != XEN_DOMCTL_PFINFO_BROKEN))) &&
+             !pfn_is_populated(ctx, original_pfns[i]) )
+        {
+            rc = pfn_set_populated(ctx, original_pfns[i]);
+            if ( rc )
+                goto err;
+            pfns[nr_pfns] = mfns[nr_pfns] = original_pfns[i];
+            ++nr_pfns;
+        }
+    }
+
+    if ( nr_pfns )
+    {
+        rc = xc_domain_populate_physmap_exact(
+            xch, ctx->domid, nr_pfns, 0, 0, mfns);
+        if ( rc )
+        {
+            PERROR("Failed to populate physmap");
+            goto err;
+        }
+
+        for ( i = 0; i < nr_pfns; ++i )
+        {
+            if ( mfns[i] == INVALID_MFN )
+            {
+                ERROR("Populate physmap failed for pfn %u", i);
+                rc = -1;
+                goto err;
+            }
+
+            ctx->restore.ops.set_gfn(ctx, pfns[i], mfns[i]);
+        }
+    }
+
+    rc = 0;
+
+ err:
+    free(pfns);
+    free(mfns);
+
+    return rc;
+}
+
+/*
+ * Given a list of pfns, their types, and a block of page data from the
+ * stream, populate and record their types, map the relevant subset and copy
+ * the data into the guest.
+ */
+static int process_page_data(struct xc_sr_context *ctx, unsigned count,
+                             xen_pfn_t *pfns, uint32_t *types, void *page_data)
+{
+    xc_interface *xch = ctx->xch;
+    xen_pfn_t *mfns = malloc(count * sizeof(*mfns));
+    int *map_errs = malloc(count * sizeof(*map_errs));
+    int rc;
+    void *mapping = NULL, *guest_page = NULL;
+    unsigned i,    /* i indexes the pfns from the record. */
+        j,         /* j indexes the subset of pfns we decide to map. */
+        nr_pages = 0;
+
+    if ( !mfns || !map_errs )
+    {
+        rc = -1;
+        ERROR("Failed to allocate %zu bytes to process page data",
+              count * (sizeof(*mfns) + sizeof(*map_errs)));
+        goto err;
+    }
+
+    rc = populate_pfns(ctx, count, pfns, types);
+    if ( rc )
+    {
+        ERROR("Failed to populate pfns for batch of %u pages", count);
+        goto err;
+    }
+
+    for ( i = 0; i < count; ++i )
+    {
+        ctx->restore.ops.set_page_type(ctx, pfns[i], types[i]);
+
+        switch ( types[i] )
+        {
+        case XEN_DOMCTL_PFINFO_NOTAB:
+
+        case XEN_DOMCTL_PFINFO_L1TAB:
+        case XEN_DOMCTL_PFINFO_L1TAB | XEN_DOMCTL_PFINFO_LPINTAB:
+
+        case XEN_DOMCTL_PFINFO_L2TAB:
+        case XEN_DOMCTL_PFINFO_L2TAB | XEN_DOMCTL_PFINFO_LPINTAB:
+
+        case XEN_DOMCTL_PFINFO_L3TAB:
+        case XEN_DOMCTL_PFINFO_L3TAB | XEN_DOMCTL_PFINFO_LPINTAB:
+
+        case XEN_DOMCTL_PFINFO_L4TAB:
+        case XEN_DOMCTL_PFINFO_L4TAB | XEN_DOMCTL_PFINFO_LPINTAB:
+
+            mfns[nr_pages++] = ctx->restore.ops.pfn_to_gfn(ctx, pfns[i]);
+            break;
+        }
+    }
+
+    /* Nothing to do? */
+    if ( nr_pages == 0 )
+        goto done;
+
+    mapping = guest_page = xenforeignmemory_map(xch->fmem,
+        ctx->domid, PROT_READ | PROT_WRITE,
+        nr_pages, mfns, map_errs);
+    if ( !mapping )
+    {
+        rc = -1;
+        PERROR("Unable to map %u mfns for %u pages of data",
+               nr_pages, count);
+        goto err;
+    }
+
+    for ( i = 0, j = 0; i < count; ++i )
+    {
+        switch ( types[i] )
+        {
+        case XEN_DOMCTL_PFINFO_XTAB:
+        case XEN_DOMCTL_PFINFO_BROKEN:
+        case XEN_DOMCTL_PFINFO_XALLOC:
+            /* No page data to deal with. */
+            continue;
+        }
+
+        if ( map_errs[j] )
+        {
+            rc = -1;
+            ERROR("Mapping pfn %#"PRIpfn" (mfn %#"PRIpfn", type %#"PRIx32") failed with %d",
+                  pfns[i], mfns[j], types[i], map_errs[j]);
+            goto err;
+        }
+
+        /* Undo page normalisation done by the saver. */
+        rc = ctx->restore.ops.localise_page(ctx, types[i], page_data);
+        if ( rc )
+        {
+            ERROR("Failed to localise pfn %#"PRIpfn" (type %#"PRIx32")",
+                  pfns[i], types[i] >> XEN_DOMCTL_PFINFO_LTAB_SHIFT);
+            goto err;
+        }
+
+        if ( ctx->restore.verify )
+        {
+            /* Verify mode - compare incoming data to what we already have. */
+            if ( memcmp(guest_page, page_data, PAGE_SIZE) )
+                ERROR("verify pfn %#"PRIpfn" failed (type %#"PRIx32")",
+                      pfns[i], types[i] >> XEN_DOMCTL_PFINFO_LTAB_SHIFT);
+        }
+        else
+        {
+            /* Regular mode - copy incoming data into place. */
+            memcpy(guest_page, page_data, PAGE_SIZE);
+        }
+
+        ++j;
+        guest_page += PAGE_SIZE;
+        page_data += PAGE_SIZE;
+    }
+
+ done:
+    rc = 0;
+
+ err:
+    if ( mapping )
+        xenforeignmemory_unmap(xch->fmem, mapping, nr_pages);
+
+    free(map_errs);
+    free(mfns);
+
+    return rc;
+}
+#endif
+
 /*
  * Writes a batch of memory as a PAGE_DATA record into the stream.  The batch
  * is constructed in ctx->save.batch_pfns.
@@ -101,6 +297,22 @@ static int write_batch(struct xc_sr_context *ctx)
         .type = REC_TYPE_PAGE_DATA,
     };
 
+    /* Backup domains data
+    int backup_domid = 7;
+    xc_interface *backup_xch = ctx->xch;
+    xen_pfn_t *backup_mfns = NULL;
+    //xen_pfn_t backup_types = NULL;
+    void *backup_guest_mapping = NULL;
+    void **backup_guest_data = NULL;
+    void **backup_local_pages = NULL;
+*/
+/*  SUNNY: Read a hardcoded domain id from a file
+    FILE* fp;
+    fp = fopen("~/dom_id.txt", "r");
+    fscanf(fp, "%d", &backup_domid);
+    fclose(fp);
+    DPRINTF("SUNNY: The backup domid is: %d", backup_domid);
+ */
     assert(nr_pfns != 0);
 
     /* Mfns of the batch pfns. */
@@ -157,13 +369,14 @@ static int write_batch(struct xc_sr_context *ctx)
         mfns[nr_pages++] = mfns[i];
     }
 
+    //backup_mfns = mfns;
+
     if ( nr_pages > 0 )
     {
         guest_mapping = xenforeignmemory_map(xch->fmem,
             ctx->domid, PROT_READ, nr_pages, mfns, errors);
-        /* DPRINTF("SUNNY: Address of Guest mapping %p", &guest_mapping);
-        DPRINTF("SUNNY: Value of Guest mapping %p", guest_mapping);
-        DPRINTF("SUNNY: Guest mapping value %ld\n", *(long*) guest_mapping);*/
+        //backup_guest_mapping = xenforeignmemory_map(xch->fmem,
+           // backup_domid, PROT_READ | PROT_WRITE, nr_pages, mfns, errors);
         if ( !guest_mapping )
         {
             PERROR("Failed to map guest pages");
@@ -221,6 +434,10 @@ static int write_batch(struct xc_sr_context *ctx)
               nr_pfns * sizeof(*rec_pfns));
         goto err;
     }
+
+    /* SUNNY: Do stuff for backup VM */
+    //if ( process_page_data( ctx, nr_pfns, guest_data, types ))
+    //        goto err;
 
     hdr.count = nr_pfns;
 
@@ -1029,6 +1246,83 @@ int xc_domain_save(xc_interface *xch, int io_fd, uint32_t dom,
         ctx.save.ops = save_ops_x86_pv;
         return save(&ctx, DHDR_TYPE_X86_PV);
     }
+}
+
+int xc_get_domain_restore_params(xc_interface *xch, int io_fd, uint32_t dom,
+                      unsigned int store_evtchn, unsigned long *store_mfn,
+                      domid_t store_domid, unsigned int console_evtchn,
+                      unsigned long *console_gfn, domid_t console_domid,
+                      unsigned int hvm, unsigned int pae, int superpages,
+                      xc_migration_stream_t stream_type,
+                      struct restore_callbacks *callbacks, int send_back_fd)
+{
+    //xen_pfn_t nr_pfns;
+    struct xc_sr_context bckp_ctx;
+    xc_interface *bckp_xch = malloc(sizeof(xc_interface));
+    memcpy(bckp_xch, xch, sizeof(xc_interface));
+    bckp_ctx.xch = bckp_xch;
+    bckp_ctx.fd = io_fd;
+
+    fprintf(stderr, "SR: dom %u, fd %d, nothing %p\n", dom, bckp_ctx.fd, bckp_xch);
+
+    //DPRINTF("SR: bckp_ctx: %d, fd %d, dom %u", bckp_ctx.fd, io_fd, dom);
+#if 0
+    /* GCC 4.4 (of CentOS 6.x vintage) can' t initialise anonymous unions. */
+    bckp_ctx.restore.console_evtchn = console_evtchn;
+    bckp_ctx.restore.console_domid = console_domid;
+    bckp_ctx.restore.xenstore_evtchn = store_evtchn;
+    bckp_ctx.restore.xenstore_domid = store_domid;
+    bckp_ctx.restore.checkpointed = stream_type;
+    bckp_ctx.restore.callbacks = callbacks;
+    bckp_ctx.restore.send_back_fd = send_back_fd;
+
+    DPRINTF("SR: fd %d, dom %u, hvm %u, pae %u, superpages %d"
+            ", stream_type %d", io_fd, dom, hvm, pae,
+            superpages, stream_type);
+
+    if ( xc_domain_getinfo(xch, dom, 1, &bckp_ctx.dominfo) != 1 )
+    {
+        PERROR("Failed to get domain info");
+        return -1;
+    }
+    if ( bckp_ctx.dominfo.domid != dom )
+    {
+        ERROR("Domain %u does not exist", dom);
+        return -1;
+    }
+
+    bckp_ctx.domid = dom;
+
+    //if ( read_headers(&bckp_ctx) )
+        //return -1;
+
+    if ( xc_domain_nr_gpfns(xch, dom, &nr_pfns) < 0 )
+    {
+        PERROR("Unable to obtain the guest p2m size");
+        return -1;
+    }
+
+    bckp_ctx.restore.p2m_size = nr_pfns;
+
+    if ( bckp_ctx.dominfo.hvm )
+        bckp_ctx.restore.ops = restore_ops_x86_hvm;
+    else
+        bckp_ctx.restore.ops = restore_ops_x86_pv;
+
+    IPRINTF("XenStore: mfn %#"PRIpfn", dom %d, evt %u",
+            bckp_ctx.restore.xenstore_gfn,
+            bckp_ctx.restore.xenstore_domid,
+            bckp_ctx.restore.xenstore_evtchn);
+
+    IPRINTF("Console: mfn %#"PRIpfn", dom %d, evt %u",
+            bckp_ctx.restore.console_gfn,
+            bckp_ctx.restore.console_domid,
+            bckp_ctx.restore.console_evtchn);
+
+    *console_gfn = bckp_ctx.restore.console_gfn;
+    *store_mfn = bckp_ctx.restore.xenstore_gfn;
+#endif
+    return 0;
 }
 
 /*
