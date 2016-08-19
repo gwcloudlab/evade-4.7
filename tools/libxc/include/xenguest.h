@@ -171,7 +171,7 @@ int xc_domain_restore(xc_interface *xch, int io_fd, uint32_t dom,
                       xc_migration_stream_t stream_type,
                       struct restore_callbacks *callbacks, int send_back_fd);
 
-int xc_get_domain_restore_params(xc_interface *xch, int io_fd, uint32_t dom,
+void xc_get_domain_restore_params(xc_interface *xch, int io_fd, uint32_t dom,
                       unsigned int store_evtchn, unsigned long *store_mfn,
                       domid_t store_domid, unsigned int console_evtchn,
                       unsigned long *console_mfn, domid_t console_domid,
