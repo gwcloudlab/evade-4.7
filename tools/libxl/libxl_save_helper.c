@@ -293,11 +293,7 @@ int main(int argc, char **argv)
         startup("restore");
         setup_signals(SIG_DFL);
 
-        xc_get_domain_restore_params(xch, io_fd, dom, store_evtchn, &store_mfn,
-                              store_domid, console_evtchn, &console_mfn,
-                              console_domid, hvm, pae, superpages,
-                              stream_type,
-                              &helper_restore_callbacks, send_back_fd);
+        xc_get_domain_restore_params(dom);
 
         r = xc_domain_restore(xch, io_fd, dom, store_evtchn, &store_mfn,
                               store_domid, console_evtchn, &console_mfn,
