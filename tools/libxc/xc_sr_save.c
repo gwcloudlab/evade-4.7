@@ -811,14 +811,15 @@ static void cleanup(struct xc_sr_context *ctx)
     free(ctx->save.batch_pfns);
 }
 
-void hardcode_restore_params(xc_interface *xch) {
+static void hardcode_restore_params(struct xc_sr_context *ctx) {
     uint32_t bckp_domid = 101;
-    bckp_ctx.xch = xch;
+    xc_interface *xch = ctx->xch;
+    bckp_ctx.xch = ctx->xch;
     bckp_ctx.domid = bckp_domid;
 
     if ( xc_domain_getinfo(bckp_ctx.xch, bckp_domid, 1, &bckp_ctx.dominfo) != 1 )
     {
-        PERROR("failed to get domain info");
+        ERROR("failed to get domain info");
     }
 
     if ( bckp_ctx.dominfo.domid != bckp_domid )
@@ -903,8 +904,8 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
              * batches of pages.
              */
             if(!BACKUP_SETUP){
-                hardcode_restore_params(xch);
-                BACKUP_SETUP = 1;
+                hardcode_restore_params(ctx);
+                //BACKUP_SETUP = 1;
             }
 
             ctx->save.live = false;
@@ -1046,7 +1047,7 @@ int xc_domain_save(xc_interface *xch, int io_fd, uint32_t dom,
 
 void xc_get_domain_restore_params(uint32_t dom)
 {
-    fprintf(stderr, "\nsr: BACKUP DOM ID %u\n", dom);
+    fprintf(stderr, "\nSR: BACKUP DOM ID %u\n", dom);
 }
 
 /*

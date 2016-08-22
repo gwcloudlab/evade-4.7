@@ -171,8 +171,6 @@ int xc_domain_restore(xc_interface *xch, int io_fd, uint32_t dom,
                       xc_migration_stream_t stream_type,
                       struct restore_callbacks *callbacks, int send_back_fd);
 
-void hardcode_restore_params(xc_interface *xch);
-
 void xc_get_domain_restore_params(uint32_t dom);
 
 /**
