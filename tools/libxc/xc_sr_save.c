@@ -886,6 +886,7 @@ static void hardcode_restore_params(struct xc_sr_context *ctx)
 
     bckp_ctx.restore.p2m_size = nr_pfns;
     bckp_ctx.x86_pv.max_pfn = 131071;
+    bckp_ctx.restore.ops.hardcode_info(&bckp_ctx, ctx);
 }
 
 /*

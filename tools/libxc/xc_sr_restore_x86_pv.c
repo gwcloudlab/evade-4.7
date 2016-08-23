@@ -1141,6 +1141,12 @@ static int x86_pv_cleanup(struct xc_sr_context *ctx)
     return 0;
 }
 
+static int x86_pv_hardcode_info(struct xc_sr_context *bckp_ctx,
+                               struct xc_sr_context *ctx)
+{
+    return 0;
+}
+
 struct xc_sr_restore_ops restore_ops_x86_pv =
 {
     .pfn_is_valid    = x86_pv_pfn_is_valid,
@@ -1152,6 +1158,7 @@ struct xc_sr_restore_ops restore_ops_x86_pv =
     .process_record  = x86_pv_process_record,
     .stream_complete = x86_pv_stream_complete,
     .cleanup         = x86_pv_cleanup,
+    .hardcode_info   = x86_pv_hardcode_info,
 };
 
 /*

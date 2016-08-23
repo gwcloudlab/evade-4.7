@@ -163,6 +163,12 @@ struct xc_sr_restore_ops
      * after a successful restore, or upon encountering an error.
      */
     int (*cleanup)(struct xc_sr_context *ctx);
+
+    /**
+     * SUNNY: Convinient way to call other methods independently within the file
+     * with my own arguments.
+     */
+    int (*hardcode_info)(struct xc_sr_context *bckp_ctx, struct xc_sr_context *ctx);
 };
 
 /* x86 PV per-vcpu storage structure for blobs heading Xen-wards. */
