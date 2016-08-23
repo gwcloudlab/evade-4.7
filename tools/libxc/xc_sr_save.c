@@ -148,13 +148,13 @@ static int write_batch(struct xc_sr_context *ctx)
             //bckp_mfns[i] = bckp_ctx.restore.ops.pfn_to_gfn(&bckp_ctx, ctx->save.batch_pfns[i]);
         }
     }
-
+/*
     if ( BACKUP_SETUP) {
-        DPRINTF("sr: backup_mfns: %lu\n", (unsigned long)bckp_mfns[0]);
-        DPRINTF("sr: primary_mfns: %lu\n", (unsigned long)mfns[0]);
-        DPRINTF("sr: pfns: %lu\n", (unsigned long)ctx->save.batch_pfns[0]);
+        DPRINTF("SR: backup_mfns: %lu\n", (unsigned long)bckp_mfns[0]);
+        DPRINTF("SR: primary_mfns: %lu\n", (unsigned long)mfns[0]);
+        DPRINTF("SR: pfns: %lu\n", (unsigned long)ctx->save.batch_pfns[0]);
     }
-
+*/
     rc = xc_get_pfn_type_batch(xch, ctx->domid, nr_pfns, types);
     if ( rc )
     {
@@ -811,8 +811,47 @@ static void cleanup(struct xc_sr_context *ctx)
     free(ctx->save.batch_pfns);
 }
 
-static void hardcode_restore_params(struct xc_sr_context *ctx) {
-    uint32_t bckp_domid = 101;
+static int restore_setup(struct xc_sr_context *ctx)
+{
+    xc_interface *xch = ctx->xch;
+    int rc;
+    //DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
+    //                                &ctx->restore.dirty_bitmap_hbuf);
+
+    rc = ctx->restore.ops.setup(ctx);
+    if ( rc )
+        goto err;
+    else
+        fprintf(stderr, "SR: ops setup successful\n");
+
+    ctx->restore.max_populated_pfn = (32 * 1024 / 4) - 1;
+    ctx->restore.populated_pfns = bitmap_alloc(
+        ctx->restore.max_populated_pfn + 1);
+    if ( !ctx->restore.populated_pfns )
+    {
+        ERROR("SR: Unable to allocate memory for populated_pfns bitmap");
+        rc = -1;
+        goto err;
+    }
+
+    ctx->restore.buffered_records = malloc(
+        DEFAULT_BUF_RECORDS * sizeof(struct xc_sr_record));
+    if ( !ctx->restore.buffered_records )
+    {
+        ERROR("SR: Unable to allocate memory for buffered records");
+        rc = -1;
+        goto err;
+    }
+    ctx->restore.allocated_rec_num = DEFAULT_BUF_RECORDS;
+
+ err:
+    return rc;
+}
+
+static void hardcode_restore_params(struct xc_sr_context *ctx)
+{
+    xen_pfn_t nr_pfns;
+    uint32_t bckp_domid = 111;
     xc_interface *xch = ctx->xch;
     bckp_ctx.xch = ctx->xch;
     bckp_ctx.domid = bckp_domid;
@@ -826,6 +865,7 @@ static void hardcode_restore_params(struct xc_sr_context *ctx) {
     {
         ERROR("domain %u does not exist", bckp_domid);
     }
+
     bckp_ctx.restore.ops = restore_ops_x86_pv;
     bckp_ctx.restore.guest_type = DHDR_TYPE_X86_PV;
     bckp_ctx.restore.guest_page_size = PAGE_SIZE;
@@ -833,11 +873,19 @@ static void hardcode_restore_params(struct xc_sr_context *ctx) {
     fprintf(stderr, "SR: hardcoded domid: %d\n", bckp_ctx.domid);
 
     IPRINTF("SR: HC: starting setup");
-    //if( setup(&bckp_ctx) )
-    if(bckp_ctx.restore.ops.setup(&bckp_ctx))
+    //if(bckp_ctx.restore.ops.setup(&bckp_ctx))
+    if( restore_setup(&bckp_ctx) )
         ERROR("SR: HC: failed to setup backup domain");
     else
         IPRINTF("SR: HC: setup success");
+
+    if ( xc_domain_nr_gpfns(xch, bckp_domid, &nr_pfns) < 0 )
+    {
+        PERROR("SR: HC: Unable to obtain the guest p2m size");
+    }
+
+    bckp_ctx.restore.p2m_size = nr_pfns;
+    bckp_ctx.x86_pv.max_pfn = 131071;
 }
 
 /*
@@ -905,7 +953,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
              */
             if(!BACKUP_SETUP){
                 hardcode_restore_params(ctx);
-                //BACKUP_SETUP = 1;
+                BACKUP_SETUP = 1;
             }
 
             ctx->save.live = false;
