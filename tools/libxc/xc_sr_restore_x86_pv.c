@@ -1144,6 +1144,28 @@ static int x86_pv_cleanup(struct xc_sr_context *ctx)
 static int x86_pv_hardcode_info(struct xc_sr_context *bckp_ctx,
                                struct xc_sr_context *ctx)
 {
+
+    xc_interface *xch = ctx->xch;
+    unsigned start, end, x, fpp = PAGE_SIZE / ctx->x86_pv.width;
+
+    if ( !ctx->x86_pv.restore.seen_pv_info )
+    {
+        ERROR("SR: Not yet received X86_PV_INFO record");
+        return -1;
+    }
+
+    start =  0 / fpp;
+    end = ctx->x86_pv.max_pfn / fpp + 1;
+
+    if( expand_p2m(bckp_ctx, ctx->x86_pv.max_pfn) )
+    {
+        ERROR("SR: Expand p2m didn't work");
+        return -1;
+    }
+
+    for ( x = 0; x < (end - start); ++x )
+        bckp_ctx->x86_pv.p2m_pfns[start + x] = ctx->x86_pv.p2m_pfns[x];
+
     return 0;
 }
 
