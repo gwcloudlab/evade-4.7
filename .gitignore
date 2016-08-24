@@ -360,3 +360,9 @@ docs/txt/man/*.txt
 docs/figs/*.png
 
 Hotcloud16/exp/
+.DS_Store
+._.DS_Store
+evade-per.config
+evade-per.creator
+evade-per.files
+evade-per.includes
