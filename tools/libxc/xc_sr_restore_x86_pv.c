@@ -1146,12 +1146,13 @@ static int x86_pv_hardcode_info(struct xc_sr_context *bckp_ctx,
 {
 
     xc_interface *xch = ctx->xch;
-    unsigned start, end, x, fpp = PAGE_SIZE / ctx->x86_pv.width;
+    unsigned start, end, fpp = PAGE_SIZE / ctx->x86_pv.width;
+    unsigned x;
 
     if ( !ctx->x86_pv.restore.seen_pv_info )
     {
-        ERROR("SR: Not yet received X86_PV_INFO record");
-        return -1;
+        DPRINTF("SR: Not yet received X86_PV_INFO record");
+        //return -1;
     }
 
     start =  0 / fpp;
@@ -1159,8 +1160,8 @@ static int x86_pv_hardcode_info(struct xc_sr_context *bckp_ctx,
 
     if( expand_p2m(bckp_ctx, ctx->x86_pv.max_pfn) )
     {
-        ERROR("SR: Expand p2m didn't work");
-        return -1;
+        DPRINTF("SR: Expand p2m didn't work");
+        //return -1;
     }
 
     for ( x = 0; x < (end - start); ++x )

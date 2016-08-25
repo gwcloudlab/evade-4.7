@@ -1031,6 +1031,8 @@ int xc_domain_populate_physmap_exact(xc_interface *xch,
 
     err = xc_domain_populate_physmap(xch, domid, nr_extents,
                                      extent_order, mem_flags, extent_start);
+    fprintf(stderr, "SR: Attempting allocation for dom %d: %ld extents of order %d\n",
+                domid, nr_extents, extent_order);
     if ( err == nr_extents )
         return 0;
 
