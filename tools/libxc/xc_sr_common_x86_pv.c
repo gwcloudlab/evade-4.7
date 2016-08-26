@@ -90,6 +90,7 @@ int x86_pv_domain_info(struct xc_sr_context *ctx)
     ctx->x86_pv.levels = guest_levels;
 
     DPRINTF("%d bits, %d levels", guest_width * 8, guest_levels);
+    fprintf(stderr, "SR: %d bits, %d levels\n", guest_width * 8, guest_levels);
 
     return 0;
 }
