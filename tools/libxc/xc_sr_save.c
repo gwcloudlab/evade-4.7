@@ -84,9 +84,12 @@ static int write_batch(struct xc_sr_context *ctx)
 {
     xc_interface *xch = ctx->xch;
     xen_pfn_t *mfns = NULL, *types = NULL;
+
     xen_pfn_t *dirtied_bckp_mfns = NULL;
-    void *guest_mapping = NULL;
     void *bckp_guest_mapping = NULL;
+    void *bckp_page;
+
+    void *guest_mapping = NULL;
     void **guest_data = NULL;
     void **local_pages = NULL;
     int *errors = NULL, rc = -1;
@@ -200,6 +203,8 @@ static int write_batch(struct xc_sr_context *ctx)
             }
 
             orig_page = page = guest_mapping + (p * PAGE_SIZE);
+            if ( READ_MFNS )
+                bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
             rc = ctx->save.ops.normalise_page(ctx, types[i], &page);
 
             if ( orig_page != page )
@@ -217,8 +222,11 @@ static int write_batch(struct xc_sr_context *ctx)
                 else
                     goto err;
             }
-            else
+            else {
                 guest_data[i] = page;
+                if ( READ_MFNS )
+                    memcpy(bckp_page, page, PAGE_SIZE);
+            }
 
             rc = -1;
             ++p;
