@@ -3,6 +3,10 @@
 
 #include "xc_sr_common.h"
 
+int READ_MFNS = 0;
+uint32_t bckp_domid;
+unsigned long bckp_mfns [131072] = { 0 };
+
 /*
  * Writes an Image header and Domain header into the stream.
  */
@@ -80,7 +84,9 @@ static int write_batch(struct xc_sr_context *ctx)
 {
     xc_interface *xch = ctx->xch;
     xen_pfn_t *mfns = NULL, *types = NULL;
+    xen_pfn_t *dirtied_bckp_mfns = NULL;
     void *guest_mapping = NULL;
+    void *bckp_guest_mapping = NULL;
     void **guest_data = NULL;
     void **local_pages = NULL;
     int *errors = NULL, rc = -1;
@@ -99,6 +105,7 @@ static int write_batch(struct xc_sr_context *ctx)
 
     /* Mfns of the batch pfns. */
     mfns = malloc(nr_pfns * sizeof(*mfns));
+    dirtied_bckp_mfns = malloc(nr_pfns * sizeof(*dirtied_bckp_mfns));
     /* Types of the batch pfns. */
     types = malloc(nr_pfns * sizeof(*types));
     /* Errors from attempting to map the gfns. */
@@ -121,6 +128,8 @@ static int write_batch(struct xc_sr_context *ctx)
     {
         types[i] = mfns[i] = ctx->save.ops.pfn_to_gfn(ctx,
                                                       ctx->save.batch_pfns[i]);
+        if( READ_MFNS )
+            dirtied_bckp_mfns[i] = bckp_mfns[ctx->save.batch_pfns[i]];
 
         /* Likely a ballooned page. */
         if ( mfns[i] == INVALID_MFN )
@@ -155,6 +164,17 @@ static int write_batch(struct xc_sr_context *ctx)
     {
         guest_mapping = xenforeignmemory_map(xch->fmem,
             ctx->domid, PROT_READ, nr_pages, mfns, errors);
+
+        if( READ_MFNS )
+        {
+            bckp_guest_mapping = xenforeignmemory_map(xch->fmem,
+                bckp_domid, PROT_READ | PROT_WRITE, nr_pages, dirtied_bckp_mfns, errors);
+            if ( !bckp_guest_mapping )
+            {
+                PERROR("SR: Failed to map backup guest pages");
+            }
+        }
+
         if ( !guest_mapping )
         {
             PERROR("Failed to map guest pages");
@@ -570,6 +590,25 @@ static int colo_merge_secondary_dirty_bitmap(struct xc_sr_context *ctx)
 }
 
 /*
+ * Sunny: Read the file written by restore code.
+ */
+static int get_mfns_from_backup(struct xc_sr_context *ctx)
+{
+    FILE *file = fopen("/tmp/test.txt", "r");
+    unsigned long num, i = 0;
+    int rc = 0;
+
+    fscanf(file, "%d", &bckp_domid);
+    while(fscanf(file, "%lu", &num) > 0) {
+        bckp_mfns[i] = num;
+        //fprintf(stderr, "bckp_mfns[%lu] = %lu\n", i, bckp_mfns[i]);
+        i++;
+    }
+    fclose(file);
+    return rc;
+}
+
+/*
  * Suspend the domain and send dirty memory.
  * This is the last iteration of the live migration and the
  * heart of the checkpointed stream.
@@ -886,6 +925,12 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 rc = -1;
                 goto err;
             }
+        }
+        if ( !READ_MFNS )
+        {
+            if( get_mfns_from_backup(ctx) )
+                DPRINTF("SR: Didn't read mfns");
+            READ_MFNS = 1;
         }
     } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 

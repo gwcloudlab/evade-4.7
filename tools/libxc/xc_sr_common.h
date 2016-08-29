@@ -258,6 +258,9 @@ struct xc_sr_context
             unsigned long *populated_pfns;
             xen_pfn_t max_populated_pfn;
 
+            /* List of all MFNs */
+            //xen_pfn_t mfns_to_be_sent;
+
             /* Sender has invoked verify mode on the stream. */
             bool verify;
         } restore;

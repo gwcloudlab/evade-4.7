@@ -4,6 +4,10 @@
 
 #include "xc_sr_common.h"
 
+unsigned SENT_MFNS = 0, ITER = 0;
+//xen_pfn_t *mfns_to_be_sent = NULL;
+xen_pfn_t mfns_to_be_sent[131072] = { 0 };
+
 /*
  * Read and validate the Image and Domain headers.
  */
@@ -139,6 +143,7 @@ int populate_pfns(struct xc_sr_context *ctx, unsigned count,
         *pfns = malloc(count * sizeof(*pfns));
     unsigned i, nr_pfns = 0;
     int rc = -1;
+    //mfns_to_be_sent = realloc(mfns_to_be_sent, count * sizeof(*mfns_to_be_sent));
 
     if ( !mfns || !pfns )
     {
@@ -182,6 +187,10 @@ int populate_pfns(struct xc_sr_context *ctx, unsigned count,
             }
 
             ctx->restore.ops.set_gfn(ctx, pfns[i], mfns[i]);
+            ITER = pfns[i];
+            mfns_to_be_sent[ITER] = mfns[i];
+            //fprintf(stderr, "SR: pfns[%d] = %ld, mfns[%d] = %ld\n", i, pfns[i], i, mfns[i]);
+            //fprintf(stderr, "SR: mfns_to_be_sent[%d] = %ld\n", ITER, mfns_to_be_sent[ITER]);
         }
     }
 
@@ -499,6 +508,22 @@ static int send_checkpoint_dirty_pfn_list(struct xc_sr_context *ctx)
     return rc;
 }
 
+static int send_mfns_to_primary(struct xc_sr_context *ctx)
+{
+    int rc = 0;
+    unsigned long i, count = 131072;
+    FILE *fp;
+
+    fp = fopen("/tmp/test.txt", "w+");
+
+    fprintf(fp, "%d\n", ctx->domid);
+    for (i = 0; i < count; ++i)
+        fprintf(fp, "%ld\n", mfns_to_be_sent[i]);
+    fclose(fp);
+
+    return rc;
+}
+
 static int process_record(struct xc_sr_context *ctx, struct xc_sr_record *rec);
 static int handle_checkpoint(struct xc_sr_context *ctx)
 {
@@ -530,6 +555,13 @@ static int handle_checkpoint(struct xc_sr_context *ctx)
     default: /* Other fatal error */
         rc = -1;
         goto err;
+    }
+
+    if(!SENT_MFNS)
+    {
+        if( send_mfns_to_primary(ctx) )
+            DPRINTF("SR: Failed to send mfns to primary");
+        SENT_MFNS = 1;
     }
 
     if ( ctx->restore.buffer_all_records )
@@ -888,6 +920,9 @@ int xc_domain_restore(xc_interface *xch, int io_fd, uint32_t dom,
     }
 
     ctx.restore.p2m_size = nr_pfns;
+
+    //DPRINTF("SR: Number of PFNS: %lu", nr_pfns);
+    //mfns_to_be_sent = malloc(nr_pfns * sizeof(unsigned long));
 
     if ( ctx.dominfo.hvm )
     {
