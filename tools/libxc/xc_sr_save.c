@@ -88,7 +88,7 @@ static int write_batch(struct xc_sr_context *ctx)
     xen_pfn_t *dirtied_bckp_mfns = NULL, *pfns_to_send = NULL;
     void *bckp_guest_mapping = NULL;
     void *bckp_page;
-    unsigned memcopied = 0, j;
+    unsigned memcopied = 0, j, nr_memcopied = 0;
 
     void *guest_mapping = NULL;
     void **guest_data = NULL;
@@ -188,6 +188,9 @@ static int write_batch(struct xc_sr_context *ctx)
         }
         nr_pages_mapped = nr_pages;
 
+        DPRINTF("SR: Before memcpy: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
+
+
         for ( i = 0, j = 0, p = 0; i < nr_pfns; ++i )
         {
             switch ( types[i] )
@@ -195,7 +198,6 @@ static int write_batch(struct xc_sr_context *ctx)
             case XEN_DOMCTL_PFINFO_BROKEN:
             case XEN_DOMCTL_PFINFO_XALLOC:
             case XEN_DOMCTL_PFINFO_XTAB:
-                ++j;
                 continue;
             }
 
@@ -217,10 +219,10 @@ static int write_batch(struct xc_sr_context *ctx)
             }
             else if ( READ_MFNS ) /* `page` hasn't been modified */
             {
-                DPRINTF("SR: memcpy was done");
                 memcpy(bckp_page, page, PAGE_SIZE);
                 --nr_pages;
                 memcopied = 1;
+                ++nr_memcopied;
             }
 
             if ( rc )
@@ -250,6 +252,8 @@ static int write_batch(struct xc_sr_context *ctx)
         }
     }
 
+    DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
+
     if ( READ_MFNS )
         nr_pfns = j;
 
@@ -260,8 +264,6 @@ static int write_batch(struct xc_sr_context *ctx)
               nr_pfns * sizeof(*rec_pfns));
         goto err;
     }
-
-    DPRINTF("SR: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
 
     hdr.count = nr_pfns;
 
