@@ -85,9 +85,10 @@ static int write_batch(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xen_pfn_t *mfns = NULL, *types = NULL;
 
-    xen_pfn_t *dirtied_bckp_mfns = NULL;
+    xen_pfn_t *dirtied_bckp_mfns = NULL, *pfns_to_send = NULL;
     void *bckp_guest_mapping = NULL;
     void *bckp_page;
+    unsigned memcopied = 0, j;
 
     void *guest_mapping = NULL;
     void **guest_data = NULL;
@@ -105,10 +106,9 @@ static int write_batch(struct xc_sr_context *ctx)
     };
 
     assert(nr_pfns != 0);
-
     /* Mfns of the batch pfns. */
     mfns = malloc(nr_pfns * sizeof(*mfns));
-    dirtied_bckp_mfns = malloc(nr_pfns * sizeof(*dirtied_bckp_mfns));
+
     /* Types of the batch pfns. */
     types = malloc(nr_pfns * sizeof(*types));
     /* Errors from attempting to map the gfns. */
@@ -119,6 +119,9 @@ static int write_batch(struct xc_sr_context *ctx)
     local_pages = calloc(nr_pfns, sizeof(*local_pages));
     /* iovec[] for writev(). */
     iov = malloc((nr_pfns + 4) * sizeof(*iov));
+
+    dirtied_bckp_mfns = malloc(nr_pfns * sizeof(*dirtied_bckp_mfns));
+    pfns_to_send = malloc(nr_pfns * sizeof(*pfns_to_send));
 
     if ( !mfns || !types || !errors || !guest_data || !local_pages || !iov )
     {
@@ -185,13 +188,14 @@ static int write_batch(struct xc_sr_context *ctx)
         }
         nr_pages_mapped = nr_pages;
 
-        for ( i = 0, p = 0; i < nr_pfns; ++i )
+        for ( i = 0, j = 0, p = 0; i < nr_pfns; ++i )
         {
             switch ( types[i] )
             {
             case XEN_DOMCTL_PFINFO_BROKEN:
             case XEN_DOMCTL_PFINFO_XALLOC:
             case XEN_DOMCTL_PFINFO_XTAB:
+                ++j;
                 continue;
             }
 
@@ -207,8 +211,17 @@ static int write_batch(struct xc_sr_context *ctx)
                 bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
             rc = ctx->save.ops.normalise_page(ctx, types[i], &page);
 
-            if ( orig_page != page )
+            if ( orig_page != page ) /* Only send if it is different */
+            {
                 local_pages[i] = page;
+            }
+            else if ( READ_MFNS ) /* `page` hasn't been modified */
+            {
+                DPRINTF("SR: memcpy was done");
+                memcpy(bckp_page, page, PAGE_SIZE);
+                --nr_pages;
+                memcopied = 1;
+            }
 
             if ( rc )
             {
@@ -222,16 +235,23 @@ static int write_batch(struct xc_sr_context *ctx)
                 else
                     goto err;
             }
-            else {
-                guest_data[i] = page;
-                if ( READ_MFNS )
-                    memcpy(bckp_page, page, PAGE_SIZE);
+            else if ( READ_MFNS && !memcopied )
+            {
+                guest_data[j] = page;
+                pfns_to_send[j] = ctx->save.batch_pfns[i];
+                ++j;
             }
+            else
+                guest_data[i] = page;
 
+            memcopied = 0;
             rc = -1;
             ++p;
         }
     }
+
+    if ( READ_MFNS )
+        nr_pfns = j;
 
     rec_pfns = malloc(nr_pfns * sizeof(*rec_pfns));
     if ( !rec_pfns )
@@ -241,14 +261,20 @@ static int write_batch(struct xc_sr_context *ctx)
         goto err;
     }
 
+    DPRINTF("SR: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
+
     hdr.count = nr_pfns;
 
     rec.length = sizeof(hdr);
     rec.length += nr_pfns * sizeof(*rec_pfns);
     rec.length += nr_pages * PAGE_SIZE;
-
     for ( i = 0; i < nr_pfns; ++i )
-        rec_pfns[i] = ((uint64_t)(types[i]) << 32) | ctx->save.batch_pfns[i];
+    {
+        if ( READ_MFNS )
+            rec_pfns[i] = ((uint64_t)(types[i]) << 32) | pfns_to_send[i];
+        else
+            rec_pfns[i] = ((uint64_t)(types[i]) << 32) | ctx->save.batch_pfns[i];
+    }
 
     iov[0].iov_base = &rec.type;
     iov[0].iov_len = sizeof(rec.type);
