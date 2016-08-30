@@ -329,6 +329,14 @@ static int write_batch(struct xc_sr_context *ctx)
     free(types);
     free(mfns);
 
+    if ( READ_MFNS )
+    {
+        if ( bckp_guest_mapping )
+            xenforeignmemory_unmap(xch->fmem, bckp_guest_mapping, nr_pages_mapped);
+        free(dirtied_bckp_mfns);
+        free(pfns_to_send);
+    }
+
     return rc;
 }
 
