@@ -94,7 +94,7 @@ static int write_batch(struct xc_sr_context *ctx)
     void **guest_data = NULL;
     void **local_pages = NULL;
     int *errors = NULL, rc = -1;
-    unsigned i, p, nr_pages = 0, nr_pages_mapped = 0;
+    unsigned i, p, remus_failover = 0, nr_pages = 0, nr_pages_mapped = 0;
     unsigned nr_pfns = ctx->save.nr_batch_pfns;
     void *page, *orig_page;
     uint64_t *rec_pfns = NULL;
@@ -160,6 +160,7 @@ static int write_batch(struct xc_sr_context *ctx)
         case XEN_DOMCTL_PFINFO_BROKEN:
         case XEN_DOMCTL_PFINFO_XALLOC:
         case XEN_DOMCTL_PFINFO_XTAB:
+            remus_failover = 1;
             continue;
         }
 
@@ -243,7 +244,7 @@ static int write_batch(struct xc_sr_context *ctx)
                 pfns_to_send[j] = ctx->save.batch_pfns[i];
                 ++j;
             }
-            else
+            else if ( !READ_MFNS )
                 guest_data[i] = page;
 
             memcopied = 0;
@@ -254,7 +255,7 @@ static int write_batch(struct xc_sr_context *ctx)
 
     DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
 
-    if ( READ_MFNS )
+    if ( READ_MFNS && !remus_failover )
         nr_pfns = j;
 
     rec_pfns = malloc(nr_pfns * sizeof(*rec_pfns));
@@ -272,7 +273,7 @@ static int write_batch(struct xc_sr_context *ctx)
     rec.length += nr_pages * PAGE_SIZE;
     for ( i = 0; i < nr_pfns; ++i )
     {
-        if ( READ_MFNS )
+        if ( READ_MFNS && !remus_failover)
             rec_pfns[i] = ((uint64_t)(types[i]) << 32) | pfns_to_send[i];
         else
             rec_pfns[i] = ((uint64_t)(types[i]) << 32) | ctx->save.batch_pfns[i];
