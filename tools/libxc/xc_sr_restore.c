@@ -1,8 +1,27 @@
+#include <stdlib.h>
+#include <unistd.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
+#include <errno.h>
+#include <sys/mman.h>
+
 #include <arpa/inet.h>
 
 #include <assert.h>
 
 #include "xc_sr_common.h"
+
+#include "superfasthash.h"
+#include "superfasthash.c"
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+//#include "libvmi.h"
 
 /*
  * Read and validate the Image and Domain headers.
@@ -211,6 +230,12 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
         j,         /* j indexes the subset of pfns we decide to map. */
         nr_pages = 0;
 
+/*For Hash Function*/
+    FILE *hash_log;
+    uint32_t hash_result = 0;
+    hash_log = fopen("/home/zhen/hash.txt","a+");
+
+
     if ( !mfns || !map_errs )
     {
         rc = -1;
@@ -305,6 +330,11 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
         {
             /* Regular mode - copy incoming data into place. */
             memcpy(guest_page, page_data, PAGE_SIZE);
+ 
+	    /*Add Hahsh Function into Restore*/
+            hash_result = hash_inc(guest_page, PAGE_SIZE, 0);
+            fprintf(hash_log, "%d\n", hash_result);
+
         }
 
         ++j;
@@ -735,6 +765,8 @@ static int restore(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     struct xc_sr_record rec;
     int rc, saved_rc = 0, saved_errno = 0;
+    int fd;		//Linux Pipe
+    char * myfifo = "/home/zhen/myfifo";	//Linux Pipe
 
     IPRINTF("Restoring domain");
 
@@ -763,6 +795,14 @@ static int restore(struct xc_sr_context *ctx)
         }
         else
         {
+
+/*------------------------Linux Pipe------------------------------*/
+	    //fd = open(myfifo, O_WRONLY);
+    	    //write(fd, "VMI Run", 7);
+    	    //close(fd);
+    	    //unlink(myfifo);
+/*------------------------Linux Pipe Ends Here------------------------------*/
+
             rc = process_record(ctx, &rec);
             if ( rc == RECORD_NOT_PROCESSED )
             {
@@ -784,6 +824,13 @@ static int restore(struct xc_sr_context *ctx)
         }
 
     } while ( rec.type != REC_TYPE_END );
+
+/*------------------------Linux Pipe------------------------------*/
+    fd = open(myfifo, O_WRONLY);
+    write(fd, "VMI Run", 7);
+    //close(fd);
+    unlink(myfifo);
+/*------------------------Linux Pipe Ends Here------------------------------*/
 
  remus_failover:
 
