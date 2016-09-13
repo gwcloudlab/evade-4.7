@@ -3,7 +3,7 @@
 
 #include "xc_sr_common.h"
 
-int READ_MFNS = 0;
+int READ_MFNS = 0, READ_MFNS_AGAIN = 1;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
 
@@ -88,13 +88,13 @@ static int write_batch(struct xc_sr_context *ctx)
     xen_pfn_t *dirtied_bckp_mfns = NULL, *pfns_to_send = NULL;
     void *bckp_guest_mapping = NULL;
     void *bckp_page;
-    unsigned memcopied = 0, j, nr_memcopied = 0;
+    unsigned remus_failover = 0, memcopied = 0, j = 0, nr_memcopied = 0;
 
     void *guest_mapping = NULL;
     void **guest_data = NULL;
     void **local_pages = NULL;
     int *errors = NULL, rc = -1;
-    unsigned i, p, remus_failover = 0, nr_pages = 0, nr_pages_mapped = 0;
+    unsigned i, p, nr_pages = 0, nr_pages_mapped = 0;
     unsigned nr_pfns = ctx->save.nr_batch_pfns;
     void *page, *orig_page;
     uint64_t *rec_pfns = NULL;
@@ -164,7 +164,10 @@ static int write_batch(struct xc_sr_context *ctx)
             continue;
         }
 
-        mfns[nr_pages++] = mfns[i];
+        dirtied_bckp_mfns[nr_pages] = dirtied_bckp_mfns[i];
+        mfns[nr_pages] = mfns[i];
+        ++nr_pages;
+        //mfns[nr_pages++] = mfns[i];
     }
 
     if ( nr_pages > 0 )
@@ -174,11 +177,12 @@ static int write_batch(struct xc_sr_context *ctx)
 
         if( READ_MFNS )
         {
-            bckp_guest_mapping = xenforeignmemory_map(xch->fmem,
+            bckp_guest_mapping = bckp_page = xenforeignmemory_map(xch->fmem,
                 bckp_domid, PROT_READ | PROT_WRITE, nr_pages, dirtied_bckp_mfns, errors);
             if ( !bckp_guest_mapping )
             {
                 PERROR("SR: Failed to map backup guest pages");
+                goto err;
             }
         }
 
@@ -190,7 +194,6 @@ static int write_batch(struct xc_sr_context *ctx)
         nr_pages_mapped = nr_pages;
 
         DPRINTF("SR: Before memcpy: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
-
 
         for ( i = 0, j = 0, p = 0; i < nr_pfns; ++i )
         {
@@ -210,8 +213,7 @@ static int write_batch(struct xc_sr_context *ctx)
             }
 
             orig_page = page = guest_mapping + (p * PAGE_SIZE);
-            if ( READ_MFNS )
-                bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
+
             rc = ctx->save.ops.normalise_page(ctx, types[i], &page);
 
             if ( orig_page != page ) /* Only send if it is different */
@@ -220,16 +222,18 @@ static int write_batch(struct xc_sr_context *ctx)
             }
             else if ( READ_MFNS ) /* `page` hasn't been modified */
             {
+                bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
                 memcpy(bckp_page, page, PAGE_SIZE);
+                ++nr_memcopied;
                 --nr_pages;
                 memcopied = 1;
-                ++nr_memcopied;
             }
 
             if ( rc )
             {
                 if ( rc == -1 && errno == EAGAIN )
                 {
+                    DPRINTF("SR: Deferred Dirty pfn[%u] = %lu", i, ctx->save.batch_pfns[i]);
                     set_bit(ctx->save.batch_pfns[i], ctx->save.deferred_pages);
                     ++ctx->save.nr_deferred_pages;
                     types[i] = XEN_DOMCTL_PFINFO_XTAB;
@@ -238,14 +242,17 @@ static int write_batch(struct xc_sr_context *ctx)
                 else
                     goto err;
             }
+            else if ( !READ_MFNS )
+            {
+                guest_data[i] = page;
+            }
             else if ( READ_MFNS && !memcopied )
             {
-                guest_data[j] = page;
-                pfns_to_send[j] = ctx->save.batch_pfns[i];
-                ++j;
+                    guest_data[j] = page;
+                    pfns_to_send[j] = ctx->save.batch_pfns[i];
+                    assert(pfns_to_send[j] <= ctx->x86_pv.max_pfn);
+                    ++j;
             }
-            else if ( !READ_MFNS )
-                guest_data[i] = page;
 
             memcopied = 0;
             rc = -1;
@@ -253,10 +260,21 @@ static int write_batch(struct xc_sr_context *ctx)
         }
     }
 
-    DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
+   DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
 
     if ( READ_MFNS && !remus_failover )
-        nr_pfns = j;
+    {
+        if (j == 1){
+            nr_pfns = j;
+        } else {
+            --j;
+            --nr_pages;
+            nr_pfns = j;
+        }
+    }
+
+    //guest_data = realloc(guest_data, nr_pfns * sizeof(*guest_data));
+    //pfns_to_send = realloc(pfns_to_send, nr_pfns * sizeof(*pfns_to_send));
 
     rec_pfns = malloc(nr_pfns * sizeof(*rec_pfns));
     if ( !rec_pfns )
@@ -273,11 +291,17 @@ static int write_batch(struct xc_sr_context *ctx)
     rec.length += nr_pages * PAGE_SIZE;
     for ( i = 0; i < nr_pfns; ++i )
     {
-        if ( READ_MFNS && !remus_failover)
+        if ( READ_MFNS && !remus_failover){
+            /*DPRINTF("SR: pfns_to_send[%d] = %lu", i, pfns_to_send[i]);*/
+            assert(pfns_to_send[i] <= ctx->x86_pv.max_pfn);
             rec_pfns[i] = ((uint64_t)(types[i]) << 32) | pfns_to_send[i];
+        }
         else
             rec_pfns[i] = ((uint64_t)(types[i]) << 32) | ctx->save.batch_pfns[i];
     }
+
+    if ( READ_MFNS)
+            DPRINTF("SR: pfns_to_send[%d] = %lu", i, pfns_to_send[i]);
 
     iov[0].iov_base = &rec.type;
     iov[0].iov_len = sizeof(rec.type);
@@ -434,6 +458,7 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
     int rc;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
+    DPRINTF("SR: p2m size is %ld", ctx->save.p2m_size);
 
     for ( p = 0, written = 0; p < ctx->save.p2m_size; ++p )
     {
@@ -875,6 +900,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
 {
     xc_interface *xch = ctx->xch;
     int rc, saved_rc = 0, saved_errno = 0;
+    unsigned nr_end_checkpoint = 0;
 
     IPRINTF("Saving domain %d, type %s",
             ctx->domid, dhdr_type_to_str(guest_type));
@@ -919,8 +945,18 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             rc = -1;
             goto err;
         }
-
         rc = ctx->save.ops.end_of_checkpoint(ctx);
+        nr_end_checkpoint++;
+        DPRINTF("SR: Number of end checkpoints sent: %u", nr_end_checkpoint);
+
+        if (nr_end_checkpoint == 100)
+        {
+            READ_MFNS = 0;
+            READ_MFNS_AGAIN = 0;
+        }
+        else if (nr_end_checkpoint == 102)
+            break;
+
         if ( rc )
             goto err;
 
@@ -971,7 +1007,8 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 goto err;
             }
         }
-        if ( !READ_MFNS )
+        //if ( READ_MFNS == 123 )
+        if ( !READ_MFNS && READ_MFNS_AGAIN )
         {
             if( get_mfns_from_backup(ctx) )
                 DPRINTF("SR: Didn't read mfns");
