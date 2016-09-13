@@ -5,6 +5,7 @@
 #include "xc_sr_common.h"
 
 unsigned SENT_MFNS = 0, ITER = 0;
+//unsigned WRITE_COUNTER = 0;
 //xen_pfn_t *mfns_to_be_sent = NULL;
 xen_pfn_t mfns_to_be_sent[131072] = { 0 };
 
@@ -218,7 +219,8 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
     void *mapping = NULL, *guest_page = NULL;
     unsigned i,    /* i indexes the pfns from the record. */
         j,         /* j indexes the subset of pfns we decide to map. */
-        nr_pages = 0;
+        nr_pages = 0,
+        page_diff = 0;
 
     if ( !mfns || !map_errs )
     {
@@ -312,6 +314,9 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
         }
         else
         {
+            if (SENT_MFNS)
+                if (memcmp(guest_page, page_data, PAGE_SIZE))
+                    page_diff++;
             /* Regular mode - copy incoming data into place. */
             memcpy(guest_page, page_data, PAGE_SIZE);
         }
@@ -321,6 +326,7 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
         page_data += PAGE_SIZE;
     }
 
+ fprintf(stderr, "SR: restore: nr pages different: %u\n", page_diff);
  done:
     rc = 0;
 
@@ -507,7 +513,23 @@ static int send_checkpoint_dirty_pfn_list(struct xc_sr_context *ctx)
     free(iov);
     return rc;
 }
+/*
+static int write_mfns_to_file(struct xc_sr_context *ctx)
+{
+    int rc = 0;
+    unsigned long i, count = 131072;
+    FILE *fp;
 
+    fp = fopen("/tmp/backup_mfns.txt", "w+");
+
+    fprintf(fp, "%d\n", ctx->domid);
+    for (i = 0; i < count; ++i)
+        fprintf(fp, "%ld\n", ctx->restore.ops.pfn_to_gfn(ctx, i));
+    fclose(fp);
+
+    return rc;
+}
+*/
 static int send_mfns_to_primary(struct xc_sr_context *ctx)
 {
     int rc = 0;
@@ -813,6 +835,9 @@ static int restore(struct xc_sr_context *ctx)
                 goto remus_failover;
             else if ( rc )
                 goto err;
+            //WRITE_COUNTER++;
+            //if ( WRITE_COUNTER > 200)
+                //write_mfns_to_file(ctx);
         }
 
     } while ( rec.type != REC_TYPE_END );
