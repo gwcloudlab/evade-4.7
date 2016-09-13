@@ -4,6 +4,8 @@
 
 static xen_pfn_t pfn_to_mfn(const struct xc_sr_context *ctx, xen_pfn_t pfn)
 {
+
+    if (pfn > ctx->x86_pv.max_pfn) fprintf(stderr, "SR: pfn %lu\n", pfn);
     assert(pfn <= ctx->x86_pv.max_pfn);
 
     return xc_pfn_to_mfn(pfn, ctx->x86_pv.p2m, ctx->x86_pv.width);
