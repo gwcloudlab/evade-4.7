@@ -21,7 +21,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define MAX_BUF 1024
+//#include "libvmi.h"
 
 /*
  * Read and validate the Image and Domain headers.
@@ -765,12 +765,8 @@ static int restore(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     struct xc_sr_record rec;
     int rc, saved_rc = 0, saved_errno = 0;
-
-    int fd;             //Linux Pipe
-    int fdw;            //Linux Pipe for Write
-    char * myfifo = "/home/zhen/myfifo";        //Linux Pipe
-    char * myfifow = "/home/zhen/myfifow";
-    char buf[MAX_BUF];
+    int fd;		//Linux Pipe
+    char * myfifo = "/home/zhen/myfifo";	//Linux Pipe
 
     IPRINTF("Restoring domain");
 
@@ -822,20 +818,27 @@ static int restore(struct xc_sr_context *ctx)
     } while ( rec.type != REC_TYPE_END );
 
 /*------------------------Linux Pipe------------------------------*/
-    mkfifo(myfifow, 0666);
-    fdw = open(myfifow, O_WRONLY);
+    //int fd;           //Line #768
+    //char * myfifo = "/tmp/myfifo";    //Line #769
 
+    /* create the FIFO (named pipe) */
+    //mkfifo(myfifo, 0666);
+
+    /* write "Hi" to the FIFO */
     fd = open(myfifo, O_WRONLY);
-    write(fd, "VMI Run", 7);
 
-    while(fdw){
-	if (read(fdw, buf, MAX_BUF) != 7){
-            continue;
-        }
-	else break;
-    }
-    close(fdw);
-    unlink(myfifow);
+    //if (fd){
+    //write(fd, "VMI Please Run", sizeof("VMI Please Run"));
+    write(fd, "VMI Run", 7);
+    //}
+    //else{
+    //    PERROR("Linux Pipe Creation Filed");
+    //}
+
+    //close(fd);
+
+    /* remove the FIFO */
+    unlink(myfifo);
 /*------------------------Linux Pipe Ends Here------------------------------*/
 
  remus_failover:

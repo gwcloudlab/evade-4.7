@@ -765,10 +765,9 @@ static int restore(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     struct xc_sr_record rec;
     int rc, saved_rc = 0, saved_errno = 0;
-
-    int fd;             //Linux Pipe
-    int fdw;            //Linux Pipe for Write
-    char * myfifo = "/home/zhen/myfifo";        //Linux Pipe
+    int fd;		//Linux Pipe
+    int fdw;		//Linux Pipe for Write
+    char * myfifo = "/home/zhen/myfifo";	//Linux Pipe
     char * myfifow = "/home/zhen/myfifow";
     char buf[MAX_BUF];
 
@@ -799,6 +798,14 @@ static int restore(struct xc_sr_context *ctx)
         }
         else
         {
+
+/*------------------------Linux Pipe------------------------------*/
+	    //fd = open(myfifo, O_WRONLY);
+    	    //write(fd, "VMI Run", 7);
+    	    //close(fd);
+    	    //unlink(myfifo);
+/*------------------------Linux Pipe Ends Here------------------------------*/
+
             rc = process_record(ctx, &rec);
             if ( rc == RECORD_NOT_PROCESSED )
             {
@@ -822,17 +829,21 @@ static int restore(struct xc_sr_context *ctx)
     } while ( rec.type != REC_TYPE_END );
 
 /*------------------------Linux Pipe------------------------------*/
+    fd = open(myfifo, O_WRONLY);
+    write(fd, "VMI Run", 7);
+    
     mkfifo(myfifow, 0666);
     fdw = open(myfifow, O_WRONLY);
 
-    fd = open(myfifo, O_WRONLY);
-    write(fd, "VMI Run", 7);
-
     while(fdw){
-	if (read(fdw, buf, MAX_BUF) != 7){
+        if (read(fdw, buf, MAX_BUF) != 11){
+	    IPRINTF("Not Receiving 11 Characters!");
             continue;
         }
-	else break;
+        else{
+	IPRINTF("Receiving VMI Running Signal");
+	break;
+        }
     }
     close(fdw);
     unlink(myfifow);
