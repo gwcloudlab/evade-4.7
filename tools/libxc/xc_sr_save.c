@@ -3,7 +3,7 @@
 
 #include "xc_sr_common.h"
 
-int READ_MFNS = 0, READ_MFNS_AGAIN = 1;
+int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
 
@@ -949,14 +949,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         nr_end_checkpoint++;
         DPRINTF("SR: Number of end checkpoints sent: %u", nr_end_checkpoint);
 
-        if (nr_end_checkpoint == 100)
-        {
-            READ_MFNS = 0;
-            READ_MFNS_AGAIN = 0;
-        }
-        else if (nr_end_checkpoint == 102)
-            break;
-
         if ( rc )
             goto err;
 
@@ -1008,11 +1000,18 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             }
         }
         //if ( READ_MFNS == 123 )
-        if ( !READ_MFNS && READ_MFNS_AGAIN )
+        if ( !READ_MFNS )
         {
             if( get_mfns_from_backup(ctx) )
                 DPRINTF("SR: Didn't read mfns");
             READ_MFNS = 1;
+        }
+
+        if (nr_end_checkpoint == 100){
+            //rc = ctx->save.ops.end_of_checkpoint(ctx);
+            rc = write_checkpoint_record(ctx);
+            //rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
+            break;
         }
     } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 
