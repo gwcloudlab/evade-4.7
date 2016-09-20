@@ -220,7 +220,7 @@ static int write_batch(struct xc_sr_context *ctx)
             {
                 local_pages[i] = page;
             }
-            else if ( READ_MFNS ) /* `page` hasn't been modified */
+            else if ( READ_MFNS && i > 10 ) /* `page` hasn't been modified */
             {
                 bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
                 memcpy(bckp_page, page, PAGE_SIZE);
@@ -263,18 +263,16 @@ static int write_batch(struct xc_sr_context *ctx)
    DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
 
     if ( READ_MFNS && !remus_failover )
-    {
-        if (j == 1){
-            nr_pfns = j;
-        } else {
-            --j;
-            --nr_pages;
-            nr_pfns = j;
-        }
-    }
+        nr_pfns = j;
 
-    //guest_data = realloc(guest_data, nr_pfns * sizeof(*guest_data));
-    //pfns_to_send = realloc(pfns_to_send, nr_pfns * sizeof(*pfns_to_send));
+    //if (nr_pfns == 0)
+    //{
+    //    guest_data[j] = page;
+    //    pfns_to_send[j] = ctx->save.batch_pfns[i];
+    //    assert(pfns_to_send[j] <= ctx->x86_pv.max_pfn);
+    //    ++j;
+    //    ++nr_pages;
+    //}
 
     rec_pfns = malloc(nr_pfns * sizeof(*rec_pfns));
     if ( !rec_pfns )
@@ -292,8 +290,6 @@ static int write_batch(struct xc_sr_context *ctx)
     for ( i = 0; i < nr_pfns; ++i )
     {
         if ( READ_MFNS && !remus_failover){
-            /*DPRINTF("SR: pfns_to_send[%d] = %lu", i, pfns_to_send[i]);*/
-            assert(pfns_to_send[i] <= ctx->x86_pv.max_pfn);
             rec_pfns[i] = ((uint64_t)(types[i]) << 32) | pfns_to_send[i];
         }
         else
@@ -1007,12 +1003,12 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             READ_MFNS = 1;
         }
 
-        if (nr_end_checkpoint == 100){
-            //rc = ctx->save.ops.end_of_checkpoint(ctx);
-            rc = write_checkpoint_record(ctx);
-            //rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
-            break;
-        }
+        //if (nr_end_checkpoint == 100){
+        //    //rc = ctx->save.ops.end_of_checkpoint(ctx);
+        //    rc = write_checkpoint_record(ctx);
+        //    //rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
+        //    break;
+        //}
     } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 
     xc_report_progress_single(xch, "End of stream");
