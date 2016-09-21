@@ -3,6 +3,12 @@
 
 #include "xc_sr_common.h"
 
+#include <time.h>
+
+struct timespec tstart={0,0}, tend={0,0};
+struct timespec dstart={0,0}, dend={0,0};
+struct timespec istart={0,0}, iend={0,0};
+
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
@@ -89,6 +95,7 @@ static int write_batch(struct xc_sr_context *ctx)
     void *bckp_guest_mapping = NULL;
     void *bckp_page;
     unsigned remus_failover = 0, memcopied = 0, j = 0, nr_memcopied = 0;
+    int rc_writev = 0;
 
     void *guest_mapping = NULL;
     void **guest_data = NULL;
@@ -326,8 +333,17 @@ static int write_batch(struct xc_sr_context *ctx)
             }
         }
     }
+    clock_gettime(CLOCK_MONOTONIC, &istart);
 
-    if ( writev_exact(ctx->fd, iov, iovcnt) )
+    rc_writev = writev_exact(ctx->fd, iov, iovcnt);
+
+    clock_gettime(CLOCK_MONOTONIC, &iend);
+    DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
+           ((double)iend.tv_sec + 1.0e-9*iend.tv_nsec) -
+           ((double)istart.tv_sec + 1.0e-9*istart.tv_nsec));
+
+    //if ( writev_exact(ctx->fd, iov, iovcnt) )
+    if( rc_writev )
     {
         PERROR("Failed to write page data to stream");
         goto err;
@@ -725,9 +741,17 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         }
     }
 
+    DPRINTF("SUNNY: Dirty page count is %u", stats.dirty_count);
+
+    clock_gettime(CLOCK_MONOTONIC, &dstart);
     rc = send_dirty_pages(ctx, stats.dirty_count + ctx->save.nr_deferred_pages);
     if ( rc )
         goto out;
+
+    clock_gettime(CLOCK_MONOTONIC, &dend);
+    DPRINTF("SUNNY: dirtied_pages send time took %.9f seconds\n",
+            ((double)dend.tv_sec + 1.0e-9*dend.tv_nsec) -
+            ((double)dstart.tv_sec + 1.0e-9*dstart.tv_nsec));
 
     bitmap_clear(ctx->save.deferred_pages, ctx->save.p2m_size);
     ctx->save.nr_deferred_pages = 0;
@@ -924,6 +948,9 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         if ( rc )
             goto err;
 
+        DPRINTF("SUNNY: starting migration, suspending domain");
+        clock_gettime(CLOCK_MONOTONIC, &tstart);
+
         if ( ctx->save.live )
             rc = send_domain_memory_live(ctx);
         else if ( ctx->save.checkpointed != XC_MIG_STREAM_NONE )
@@ -970,6 +997,10 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                     goto err;
                 }
             }
+            clock_gettime(CLOCK_MONOTONIC, &tend);
+            DPRINTF("SUNNY: Domain was suspended for %.9f seconds\n",
+                    ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+                    ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
 
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
             if ( rc <= 0 )
