@@ -1,20 +1,21 @@
 #!/bin/zsh
 
 BENCH=autobench
-VMS=(ubuntu64)
+VMS=(opensuse64)
+#VMS=(ubuntu64)
 DT=$(date +"%y-%m-%d")
 HOME='/home/sundarcs'
 mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
 ssh sundarcs@10.0.0.42 "mkdir -p $BENCH"
 DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
 
-#INTS=(10 30 50 70 100 200)
-INTS=(10 30)
-LOW_RATE=20
-HIGH_RATE=60
+#INTS=(5 10 30 50 70 100)
+INTS=(10 30 100)
+LOW_RATE=80
+HIGH_RATE=200
 RATE_STEP=20
-NUM_CALL=100
-TOT_CONN=12000
+NUM_CALL=5
+TOT_CONN=120000
 #time taken = TOT_CONN / (RATE * NUM_CALL) seconds
 
 noremus ()
@@ -48,7 +49,7 @@ remus-remote ()
     ssh sundarcs@10.0.0.42 "sudo pkill xentop"
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy ubuntu--incoming"
+    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy $vm--incoming"
     sleep 15
 }
 
@@ -70,7 +71,7 @@ remus-remote-nonet ()
     ssh sundarcs@10.0.0.42 "sudo pkill xentop"
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy ubuntu--incoming"
+    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy $vm--incoming"
     sleep 15
 }
 
@@ -117,7 +118,7 @@ remus-local-nonet ()
     sudo pkill xentop
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    sudo xl destroy ubuntu--incoming
+    sudo xl destroy $vm--incoming
     sleep 15
 }
 
@@ -125,14 +126,13 @@ plot-graph ()
 {
     local vm=$1
     cd $DIR/$vm/
-    cd /home/sundarcs/evade-4.7/Hotcloud16/exp/16-08-06/autobench/ubuntu
     rm *.pdf
-    bench2graph $BENCH-0.out noremus.pdf
+    bench2graph $BENCH-0.out noremus.pdf 2 5 8
     for i in ${INTS[@]}; do
-        bench2graph $BENCH-$i.out remus-remote-$i.pdf
-        bench2graph $BENCH-$i-nonet.out remus-remote-nonet-$i.pdf
-        bench2graph $BENCH-$i-local.out remus-local-$i.pdf
-        bench2graph $BENCH-$i-local-nonet.out remus-local-nonet-$i.pdf
+        bench2graph $BENCH-$i.out remus-remote-$i.pdf 2 5 8
+        bench2graph $BENCH-$i-nonet.out remus-remote-nonet-$i.pdf 2 5 8
+        bench2graph $BENCH-$i-local.out remus-local-$i.pdf 2 5 8
+        bench2graph $BENCH-$i-local-nonet.out remus-local-nonet-$i.pdf 2 5 8
     done
 
     scp -r *.pdf sunny@161.253.74.130:~/Dropbox/autobench/
@@ -159,6 +159,7 @@ get-remus-results ()
         done
     done
     scp -r *.txt sunny@161.253.74.130:~/Dropbox/autobench/
+    scp -r *.out sunny@161.253.74.130:~/Dropbox/autobench/
 }
 
 main ()
