@@ -766,8 +766,8 @@ static int restore(struct xc_sr_context *ctx)
     struct xc_sr_record rec;
     int rc, saved_rc = 0, saved_errno = 0;
 
-    int fd;             //Linux Pipe
-    int fdw;            //Linux Pipe for Write
+    int fd;             //Linux Pipe 1
+    int fdw;            //Linux Pipe 2
     char * myfifo = "/home/zhen/myfifo";        //Linux Pipe
     char * myfifow = "/home/zhen/myfifow";
     char buf[MAX_BUF];
@@ -822,18 +822,24 @@ static int restore(struct xc_sr_context *ctx)
     } while ( rec.type != REC_TYPE_END );
 
 /*------------------------Linux Pipe------------------------------*/
-    mkfifo(myfifow, 0666);
-    fdw = open(myfifow, O_WRONLY);
+    fd = open(myfifo, O_WRONLY);	//open pipe 1 for Write
 
-    fd = open(myfifo, O_WRONLY);
+    mkfifo(myfifow, 0666);		//create pipe 2
+    fdw = open(myfifow, O_RDONLY);	//open pipe 2 for Read
+ 
     write(fd, "VMI Run", 7);
+    fsync(fd);
 
-    while(fdw){
-	if (read(fdw, buf, MAX_BUF) != 7){
+    while(fdw){				//read pipe 2
+	if (read(fdw, buf, MAX_BUF) != 10){
             continue;
         }
-	else break;
+	else{
+	    printf("Received: %s\n", buf);
+	    break;
+	}
     }
+    close(fd);
     close(fdw);
     unlink(myfifow);
 /*------------------------Linux Pipe Ends Here------------------------------*/
