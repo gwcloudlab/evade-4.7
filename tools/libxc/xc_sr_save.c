@@ -922,7 +922,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
     write(fdone, "VMI Run", 7);		//Write to Pipe 1
     fsync(fdone);
 
-    while(fdtwo){                         //read pipe 2
+    while(fdtwo){                         //Read Pipe 2
         if (read(fdtwo, buf, MAX_BUF) != 10){
             continue;
         }
