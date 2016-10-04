@@ -1,7 +1,23 @@
 #include <assert.h>
 #include <arpa/inet.h>
 
+#include <stdlib.h>
+#include <unistd.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
+#include <errno.h>
+#include <sys/mman.h>
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include "xc_sr_common.h"
+
+#define MAX_BUF 1024
 
 /*
  * Writes an Image header and Domain header into the stream.
@@ -792,6 +808,14 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
     xc_interface *xch = ctx->xch;
     int rc, saved_rc = 0, saved_errno = 0;
 
+/*---------------------Linux Pipe---------------------------*/
+    int fdone;             //Linux Pipe 1
+    int fdtwo;            //Linux Pipe 2
+    char * ffone = "/home/zhen/ffone";        //Linux Pipe
+    char * fftwo = "/home/zhen/fftwo";
+    char buf[MAX_BUF];
+/*-----------------------End Linux Pipe--------------------------------*/
+
     IPRINTF("Saving domain %d, type %s",
             ctx->domid, dhdr_type_to_str(guest_type));
 
@@ -887,6 +911,31 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 goto err;
             }
         }
+
+/*-----------------------Linux Pipe--------------------------------*/
+    mkfifo(fftwo, 0666);	//Create Pipe 2
+
+    fdone = open(ffone, O_WRONLY);	//Open Pipe 1 for Write
+
+    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+
+    write(fdone, "VMI Run", 7);		//Write to Pipe 1
+    fsync(fdone);
+
+    while(fdtwo){                         //read pipe 2
+        if (read(fdtwo, buf, MAX_BUF) != 10){
+            continue;
+        }
+        else{
+            printf("Received: %s\n", buf);
+            break;
+        }
+    }
+
+    close(fdone);
+    close(fdtwo);
+    unlink(fftwo);
+/*-----------------------End Linux Pipe--------------------------------*/
     } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 
     xc_report_progress_single(xch, "End of stream");
