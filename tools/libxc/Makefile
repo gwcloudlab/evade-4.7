@@ -104,6 +104,7 @@ endif
 -include $(XEN_TARGET_ARCH)/Makefile
 
 CFLAGS   += -Werror -Wmissing-prototypes
+CFLAGS   += -Wno-unused-result
 CFLAGS   += -I. -I./include $(CFLAGS_xeninclude)
 CFLAGS   += -D__XEN_TOOLS__
 
