@@ -142,15 +142,15 @@ get-remus-results ()
         for i in ${INTS[@]}; do
             echo -e "Average Statistics using $i msec remus interval" > remus-$i.txt
             echo -e "*****************************" >> remus-$i.txt
-            echo -e "Avg. Suspend and send dirty time: " >> remus-$i.txt
+            echo -e "Total time VM was suspended: " >> remus-$i.txt
             grep "Domain was suspended" remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Avg. Suspend_domain function call time: " >> remus-$i.txt
+            echo -e "Suspend_domain function call time: " >> remus-$i.txt
             grep "suspend_domain" remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Avg. postcopy function call time: " >> remus-$i.txt
+            echo -e "Resume function call time: " >> remus-$i.txt
             grep "postcopy" remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Avg. Dirty page sent time: " >> remus-$i.txt
+            echo -e "Dirty page sent time: " >> remus-$i.txt
             grep dirtied_pages remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Avg. writev_exact time: " >> remus-$i.txt
+            echo -e "Writev_exact time: " >> remus-$i.txt
             #grep writev remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'BEGIN {max = 0} {if ($1>max) max=$1} END {print max}' >> remus-$i.txt
             grep "writev_exact" remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
             echo -e "Avg. Dirty page count: " >> remus-$i.txt
