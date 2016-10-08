@@ -6,7 +6,9 @@
 #include <time.h>
 
 struct timespec tstart={0,0}, tend={0,0};
+struct timespec sstart={0,0}, ssend={0,0};
 struct timespec dstart={0,0}, dend={0,0};
+struct timespec pstart={0,0}, pend={0,0};
 struct timespec istart={0,0}, iend={0,0};
 
 int READ_MFNS = 0;
@@ -339,8 +341,8 @@ static int write_batch(struct xc_sr_context *ctx)
 
     clock_gettime(CLOCK_MONOTONIC, &iend);
     DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
-           ((double)iend.tv_sec + 1.0e-9*iend.tv_nsec) -
-           ((double)istart.tv_sec + 1.0e-9*istart.tv_nsec));
+            (1.0*(iend.tv_sec - istart.tv_sec)) +
+            (1.0e-9*(iend.tv_nsec - istart.tv_nsec)));
 
     //if ( writev_exact(ctx->fd, iov, iovcnt) )
     if( rc_writev )
@@ -704,7 +706,14 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
+    clock_gettime(CLOCK_MONOTONIC, &sstart);
+
     rc = suspend_domain(ctx);
+
+    clock_gettime(CLOCK_MONOTONIC, &ssend);
+    DPRINTF("SUNNY: suspend_domain fn call took %.9f seconds\n",
+            (1.0*(ssend.tv_sec - sstart.tv_sec)) +
+            (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
     if ( rc )
         goto out;
 
@@ -750,8 +759,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 
     clock_gettime(CLOCK_MONOTONIC, &dend);
     DPRINTF("SUNNY: dirtied_pages send time took %.9f seconds\n",
-            ((double)dend.tv_sec + 1.0e-9*dend.tv_nsec) -
-            ((double)dstart.tv_sec + 1.0e-9*dstart.tv_nsec));
+            (1.0*(dend.tv_sec - dstart.tv_sec)) +
+            (1.0e-9*(dend.tv_nsec - dstart.tv_nsec)));
 
     bitmap_clear(ctx->save.deferred_pages, ctx->save.p2m_size);
     ctx->save.nr_deferred_pages = 0;
@@ -997,12 +1006,21 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                     goto err;
                 }
             }
-            clock_gettime(CLOCK_MONOTONIC, &tend);
-            DPRINTF("SUNNY: Domain was suspended for %.9f seconds\n",
-                    ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
-                    ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
+
+            clock_gettime(CLOCK_MONOTONIC, &pstart);
 
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
+
+            clock_gettime(CLOCK_MONOTONIC, &pend);
+            DPRINTF("SUNNY: postcopy fn call took %.9f seconds\n",
+            (1.0*(pend.tv_sec - pstart.tv_sec)) +
+            (1.0e-9*(pend.tv_nsec - pstart.tv_nsec)));
+
+            clock_gettime(CLOCK_MONOTONIC, &tend);
+            DPRINTF("SUNNY: Domain was suspended for %.9f seconds\n",
+            (1.0*(tend.tv_sec - tstart.tv_sec)) +
+            (1.0e-9*(tend.tv_nsec - tstart.tv_nsec)));
+
             if ( rc <= 0 )
                 goto err;
 
