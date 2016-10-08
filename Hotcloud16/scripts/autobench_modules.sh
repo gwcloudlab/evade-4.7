@@ -10,25 +10,21 @@ ssh sundarcs@10.0.0.42 "mkdir -p $BENCH"
 DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
 
 #INTS=(5 10 30 50 70 100)
-INTS=(10 30 100)
-LOW_RATE=80
-HIGH_RATE=200
-RATE_STEP=20
-NUM_CALL=5
-TOT_CONN=120000
+#INTS=(10 30 100)
+INTS=(10 20 30)
+LOW_RATE=100
+HIGH_RATE=1000
+RATE_STEP=100
+NUM_CALL=10
+TOT_CONN=100000
 #time taken = TOT_CONN / (RATE * NUM_CALL) seconds
 
 noremus ()
 {
     local vm=$1
-    local i=$2
     # Initially run $BENCH with remus disabled
     echo "Running no remus"
-    ssh sundarcs@10.0.0.42 "sudo xentop -b -d 1 > $BENCH/remus-$BENCH-0-xentop &"
-    echo -e "xentop running on nn42"
     autobench --single_host --host1 $vm --uri1 /10K --quiet --low_rate $LOW_RATE --high_rate $HIGH_RATE --rate_step $RATE_STEP --num_call $NUM_CALL --num_conn $TOT_CONN --timeout 5 --file $DIR/$vm/$BENCH-0.out
-    ssh sundarcs@10.0.0.42 "sudo pkill xentop"
-    echo -e "xentop killed and $BENCH ran"
 }
 
 remus-remote ()
@@ -148,6 +144,10 @@ get-remus-results ()
             echo -e "*****************************" >> remus-$i.txt
             echo -e "Avg. Suspend and send dirty time: " >> remus-$i.txt
             grep "Domain was suspended" remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
+            echo -e "Avg. Suspend_domain function call time: " >> remus-$i.txt
+            grep "suspend_domain" remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
+            echo -e "Avg. postcopy function call time: " >> remus-$i.txt
+            grep "postcopy" remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
             echo -e "Avg. Dirty page sent time: " >> remus-$i.txt
             grep dirtied_pages remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
             echo -e "Avg. writev_exact time: " >> remus-$i.txt
