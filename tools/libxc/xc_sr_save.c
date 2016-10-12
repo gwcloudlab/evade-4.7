@@ -814,6 +814,12 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
     char * ffone = "/home/zhen/ffone";        //Linux Pipe
     char * fftwo = "/home/zhen/fftwo";
     char buf[MAX_BUF];
+
+    mkfifo(fftwo, 0666);        //Create Pipe 2
+
+    fdone = open(ffone, O_WRONLY);      //Open Pipe 1 for Write
+
+    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
 /*-----------------------End Linux Pipe--------------------------------*/
 
     IPRINTF("Saving domain %d, type %s",
@@ -913,28 +919,29 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         }
 
 /*-----------------------Linux Pipe--------------------------------*/
-    mkfifo(fftwo, 0666);	//Create Pipe 2
+    //mkfifo(fftwo, 0666);	//Create Pipe 2
 
-    fdone = open(ffone, O_WRONLY);	//Open Pipe 1 for Write
+    //fdone = open(ffone, O_WRONLY);	//Open Pipe 1 for Write
 
-    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+    //fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
 
     write(fdone, "VMI Run", 7);		//Write to Pipe 1
     fsync(fdone);
 
-    while(fdtwo){                         //Read Pipe 2
-        if (read(fdtwo, buf, MAX_BUF) != 10){
-            continue;
-        }
-        else{
-            printf("Received: %s\n", buf);
-            break;
-        }
-    }
+    //while(fdtwo){                         //Read Pipe 2
+    //    if (read(fdtwo, buf, MAX_BUF) != 10){
+    //        continue;
+    //    }
+    //    else{
+    read(fdtwo, buf, MAX_BUF);
+    fprintf(stderr,"Received: %s\n", buf);
+    //        break;
+    //    }
+    //}
 
-    close(fdone);
-    close(fdtwo);
-    unlink(fftwo);
+    //close(fdone);
+    //close(fdtwo);
+    //unlink(fftwo);
 /*-----------------------End Linux Pipe--------------------------------*/
     } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 
