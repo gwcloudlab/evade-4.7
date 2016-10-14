@@ -705,12 +705,12 @@ int writev_exact(int fd, const struct iovec *iov, int iovcnt)
             if ( ++iov_idx == iovcnt )
                 goto out;
 
-        clock_gettime(CLOCK_MONOTONIC, &cend);
+        clock_gettime(CLOCK_MONOTONIC, &cstart);
 
         len = writev(fd, &iov[iov_idx], min(iovcnt - iov_idx, IOV_MAX));
 
         clock_gettime(CLOCK_MONOTONIC, &cend);
-        elapsed_time = ((double)cend.tv_sec + 1.0e-9*cend.tv_nsec) - ((double)cstart.tv_sec + 1.0e-9*cstart.tv_nsec);
+        elapsed_time = (1.0*cend.tv_sec - 1.0*cstart.tv_sec) + (1.0e-9*cend.tv_nsec - 1.0e-9*cstart.tv_nsec);
         fprintf(stderr, "SUNNY: the writev system call took about %.9f\n", elapsed_time);
 
         saved_errno = errno;
