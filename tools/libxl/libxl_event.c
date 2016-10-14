@@ -20,6 +20,9 @@
 #include "libxl_internal.h"
 
 
+#include <time.h>
+
+struct timespec start, stop;
 //#define DEBUG 1
 
 #ifdef DEBUG
@@ -940,7 +943,15 @@ void libxl__domaindeathcheck_init(libxl__domaindeathcheck *dc)
 void libxl__domaindeathcheck_stop(libxl__gc *gc, libxl__domaindeathcheck *dc)
 {
     libxl__ao_abortable_deregister(&dc->abrt);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     libxl__ev_xswatch_deregister(gc,&dc->watch);
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: xswatch_deregister took about %.9f seconds\n",
+    	((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+	((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
 }
 
 static void domaindeathcheck_callback(libxl__egc *egc, libxl__ev_xswatch *w,

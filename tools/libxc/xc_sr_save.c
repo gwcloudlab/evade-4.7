@@ -450,7 +450,12 @@ static int suspend_domain(struct xc_sr_context *ctx)
         return -1;
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &tstart);
     xc_report_progress_single(xch, "Domain now suspended");
+    clock_gettime(CLOCK_MONOTONIC, &tend);
+    DPRINTF("REMUS: Time taken to report progress single was %.9f seconds\n",
+        ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+        ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
 
     return 0;
 }
@@ -679,14 +684,14 @@ static int get_mfns_from_backup(struct xc_sr_context *ctx)
     FILE *file = fopen("/tmp/test.txt", "r");
     unsigned long num, i = 0;
     int rc = 0;
-
-    fscanf(file, "%d", &bckp_domid);
+    int x;
+    x = fscanf(file, "%d", &bckp_domid);
     while(fscanf(file, "%lu", &num) > 0) {
         bckp_mfns[i] = num;
         //fprintf(stderr, "bckp_mfns[%lu] = %lu\n", i, bckp_mfns[i]);
         i++;
     }
-    fclose(file);
+    x = fclose(file);
     return rc;
 }
 
@@ -704,7 +709,12 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
+    clock_gettime(CLOCK_MONOTONIC, &tstart);
     rc = suspend_domain(ctx);
+    clock_gettime(CLOCK_MONOTONIC, &tend);
+    DPRINTF("REMUS: Time taken to suspend domain was %.9f seconds\n",
+        ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+        ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec));
     if ( rc )
         goto out;
 

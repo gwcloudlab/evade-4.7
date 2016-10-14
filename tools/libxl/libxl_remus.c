@@ -17,6 +17,7 @@
 #include "libxl_osdeps.h" /* must come before any other headers */
 
 #include "libxl_internal.h"
+struct timespec start, stop;
 
 extern const libxl__checkpoint_device_instance_ops remus_device_nic;
 extern const libxl__checkpoint_device_instance_ops remus_device_drbd_disk;
@@ -108,7 +109,12 @@ void libxl__remus_setup(libxl__egc *egc, libxl__remus_state *rs)
 
     dss->sws.checkpoint_callback = remus_checkpoint_stream_written;
 
+    clock_gettime(CLOCK_MONOTONIC, &start);
     callbacks->suspend = libxl__remus_domain_suspend_callback;
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: libxl__remus_domain_suspend_callback took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
     callbacks->postcopy = libxl__remus_domain_resume_callback;
     callbacks->checkpoint = libxl__remus_domain_save_checkpoint_callback;
 
@@ -205,21 +211,57 @@ static void libxl__remus_domain_suspend_callback(void *data)
     libxl__domain_save_state *dss = shs->caller_state;
     libxl__domain_suspend_state *dsps = &dss->dsps;
 
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     dsps->callback_common_done = remus_domain_suspend_callback_common_done;
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: CONTAINER_OF in remus_domain_suspend_callback_common_done took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     libxl__domain_suspend(egc, dsps);
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: libxl__domain_suspend took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
+	
 }
 
 static void remus_domain_suspend_callback_common_done(libxl__egc *egc,
                                 libxl__domain_suspend_state *dsps, int rc)
 {
+    clock_gettime(CLOCK_MONOTONIC, &start);
     libxl__domain_save_state *dss = CONTAINER_OF(dsps, *dss, dsps);
 
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: CONTAINER_OF in remus_domain_suspend_callback_common_done took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
     if (rc)
         goto out;
 
     libxl__checkpoint_devices_state *const cds = &dss->cds;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     cds->callback = remus_devices_postsuspend_cb;
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: remus devices postsuspend took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     libxl__checkpoint_devices_postsuspend(egc, cds);
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: checkpoint devices postsuspend took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
+
     return;
 
 out:
@@ -252,8 +294,20 @@ static void libxl__remus_domain_resume_callback(void *data)
     STATE_AO_GC(dss->ao);
 
     libxl__checkpoint_devices_state *const cds = &dss->cds;
+    
+    clock_gettime(CLOCK_MONOTONIC, &start);
     cds->callback = remus_devices_preresume_cb;
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: remus devices preresume cb took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
     libxl__checkpoint_devices_preresume(egc, cds);
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: libxl checkpoint devices preresume took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+            ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
 }
 
 static void remus_devices_preresume_cb(libxl__egc *egc,

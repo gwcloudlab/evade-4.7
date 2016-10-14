@@ -17,7 +17,13 @@
 
 #include "libxl_internal.h"
 
+#include <time.h>
+
+struct timespec start, stop;
+
 /*====================== Domain suspend =======================*/
+
+
 
 int libxl__domain_suspend_init(libxl__egc *egc,
                                libxl__domain_suspend_state *dsps,
@@ -156,20 +162,49 @@ static void domain_suspend_callback_common(libxl__egc *egc,
     if ((hvm_s_state == 0) && (dsps->guest_evtchn.port >= 0)) {
         LOG(DEBUG, "issuing %s suspend request via event channel",
             dsps->type == LIBXL_DOMAIN_TYPE_HVM ? "PVHVM" : "PV");
+	clock_gettime(CLOCK_MONOTONIC, &start);
         ret = xenevtchn_notify(CTX->xce, dsps->guest_evtchn.port);
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+	fprintf(stderr, "REMUS: xenevtchn_notify took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+	    ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
         if (ret < 0) {
             LOG(ERROR, "xenevtchn_notify failed ret=%d", ret);
             rc = ERROR_FAIL;
             goto err;
         }
 
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
         dsps->guest_evtchn.callback = domain_suspend_common_wait_guest_evtchn;
+
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+	fprintf(stderr, "REMUS: guest_evtchn.callback took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+	    ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
         rc = libxl__ev_evtchn_wait(gc, &dsps->guest_evtchn);
+
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+	fprintf(stderr, "REMUS: libxl__ev_evtchn_wait took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+	    ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
+
         if (rc) goto err;
+
+	clock_gettime(CLOCK_MONOTONIC, &start);
 
         rc = libxl__ev_time_register_rel(ao, &dsps->guest_timeout,
                                          suspend_common_wait_guest_timeout,
                                          60*1000);
+
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+	fprintf(stderr, "REMUS: libxl__ev_time_register_rel took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+	    ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
         if (rc) goto err;
 
         return;
@@ -179,29 +214,73 @@ static void domain_suspend_callback_common(libxl__egc *egc,
         LOG(DEBUG, "Calling xc_domain_shutdown on HVM domain");
         ret = xc_domain_shutdown(CTX->xch, domid, SHUTDOWN_suspend);
         if (ret < 0) {
+            fprintf(stderr, "REMUS: Inside Something");
             LOGE(ERROR, "xc_domain_shutdown failed");
             rc = ERROR_FAIL;
             goto err;
         }
         /* The guest does not (need to) respond to this sort of request. */
         dsps->guest_responded = 1;
+        fprintf(stderr, "REMUS: Starting Clock");
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
+	fprintf(stderr, "REMUS: Calling domain_suspend_common_wait_guest\n");
         domain_suspend_common_wait_guest(egc, dsps);
+
+	clock_gettime(CLOCK_MONOTONIC, &stop);
+
+	fprintf(stderr, "REMUS: domain_suspend_common_wait_guest took about %.9f seconds\n",
+            ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+	    ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
+
         return;
     }
-
+    
+    LOG(ERROR, "REMUS: I am here\n");
     LOG(DEBUG, "issuing %s suspend request via XenBus control node",
         dsps->type == LIBXL_DOMAIN_TYPE_HVM ? "PVHVM" : "PV");
 
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    LOG(DEBUG, "REMUS: Calling pvcontrol_write");
+
     libxl__domain_pvcontrol_write(gc, XBT_NULL, domid, "suspend");
 
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+
+    fprintf(stderr, "REMUS: libxl__domain_pvcontrol_write took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    LOG(DEBUG, "REMUS: Calling pvcontrol_path");
     dsps->pvcontrol.path = libxl__domain_pvcontrol_xspath(gc, domid);
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+
+    fprintf(stderr, "REMUS: libxl__domain_pvcontrol_xspath took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
+
     if (!dsps->pvcontrol.path) { rc = ERROR_FAIL; goto err; }
 
     dsps->pvcontrol.ao = ao;
     dsps->pvcontrol.what = "guest acknowledgement of suspend request";
     dsps->pvcontrol.timeout_ms = 60 * 1000;
     dsps->pvcontrol.callback = domain_suspend_common_pvcontrol_suspending;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    LOG(DEBUG, "REMUS: Calling xswait_start");
     libxl__xswait_start(gc, &dsps->pvcontrol);
+
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    
+    fprintf(stderr, "REMUS: libxl__xswait_start took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
+
     return;
 
  err:
@@ -211,7 +290,10 @@ static void domain_suspend_callback_common(libxl__egc *egc,
 static void domain_suspend_common_wait_guest_evtchn(libxl__egc *egc,
         libxl__ev_evtchn *evev)
 {
+
     libxl__domain_suspend_state *dsps = CONTAINER_OF(evev, *dsps, guest_evtchn);
+
+
     STATE_AO_GC(dsps->ao);
     /* If we should be done waiting, suspend_common_wait_guest_check
      * will end up calling domain_suspend_common_guest_suspended or
@@ -292,7 +374,7 @@ static void domain_suspend_common_wait_guest(libxl__egc *egc,
     int rc;
 
     LOG(DEBUG, "wait for the guest to suspend");
-
+    LOG(DEBUG, "REMUS: Inside domain_suspend_common_wait_guest\n");
     rc = libxl__ev_xswatch_register(gc, &dsps->guest_watch,
                                     suspend_common_wait_guest_watch,
                                     "@releaseDomain");
@@ -326,7 +408,13 @@ static void suspend_common_wait_guest_check(libxl__egc *egc,
     /* Convenience aliases */
     const uint32_t domid = dsps->domid;
 
+    clock_gettime(CLOCK_MONOTONIC, &start);
     ret = xc_domain_getinfolist(CTX->xch, domid, 1, &info);
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    
+    fprintf(stderr, "REMUS: domain_getinfolist took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
     if (ret < 0) {
         LOGE(ERROR, "unable to check for status of guest %"PRId32"", domid);
         goto err;
@@ -351,7 +439,13 @@ static void suspend_common_wait_guest_check(libxl__egc *egc,
     }
 
     LOG(DEBUG, "guest has suspended");
+    clock_gettime(CLOCK_MONOTONIC, &start);
     domain_suspend_common_guest_suspended(egc, dsps);
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    
+    fprintf(stderr, "REMUS: domain_suspend_common_guest_suspended took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));	
     return;
 
  err:
@@ -410,8 +504,24 @@ void libxl__domain_suspend_callback(void *data)
     libxl__domain_save_state *dss = shs->caller_state;
     libxl__domain_suspend_state *dsps = &dss->dsps;
 
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     dsps->callback_common_done = domain_suspend_callback_common_done;
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+
+    fprintf(stderr, "REMUS: domain_suspend_callback_common_done took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     domain_suspend_callback_common(egc, dsps);
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: domain_suspend_callback_common took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
 }
 
 static void domain_suspend_callback_common_done(libxl__egc *egc,
@@ -419,7 +529,15 @@ static void domain_suspend_callback_common_done(libxl__egc *egc,
 {
     libxl__domain_save_state *dss = CONTAINER_OF(dsps, *dss, dsps);
     dss->rc = rc;
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+
     libxl__xc_domain_saverestore_async_callback_done(egc, &dss->sws.shs, !rc);
+
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    fprintf(stderr, "REMUS: domain_suspend_callback_common took about %.9f seconds\n",
+        ((double)stop.tv_sec + 1.0e-9*stop.tv_nsec) -
+        ((double)start.tv_sec + 1.0e-9*start.tv_nsec));
 }
 
 /*======================= Domain resume ========================*/
