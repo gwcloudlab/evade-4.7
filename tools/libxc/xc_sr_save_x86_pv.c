@@ -991,6 +991,8 @@ static int normalise_pagetable(struct xc_sr_context *ctx, const uint64_t *src,
 }
 
 /* save_ops function. */
+/* SUNNY: This is what is used to convert the pfns
+ * to gfns for the guest on the saver side */
 static xen_pfn_t x86_pv_pfn_to_gfn(const struct xc_sr_context *ctx,
                                    xen_pfn_t pfn)
 {

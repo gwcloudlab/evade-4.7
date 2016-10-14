@@ -223,7 +223,9 @@ struct xen_domctl_getpageframeinfo3 {
   * writably by the hypervisor in the dirty bitmap.
   */
 #define XEN_DOMCTL_SHADOW_LOGDIRTY_FINAL   (1 << 0)
-
+/*
+ * Sunny: This has the dirty page count.
+ */
 struct xen_domctl_shadow_op_stats {
     uint32_t fault_count;
     uint32_t dirty_count;

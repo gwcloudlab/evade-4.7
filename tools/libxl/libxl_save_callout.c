@@ -76,6 +76,11 @@ void libxl__xc_domain_restore(libxl__egc *egc, libxl__domain_create_state *dcs,
     shs->caller_state = dcs;
     shs->need_results = 1;
 
+    /*
+     * SUNNY: This calls the libxl-save-helper with the necessary args.
+     * At this point the domain at the receiver's end should already be created.
+     * The create state can be gotten from libxl__domain_create_state.
+     */
     run_helper(egc, shs, "--restore-domain", restore_fd, send_back_fd, 0, 0,
                argnums, ARRAY_SIZE(argnums));
 }

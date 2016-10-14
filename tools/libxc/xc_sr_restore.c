@@ -245,7 +245,7 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
 
         case XEN_DOMCTL_PFINFO_L4TAB:
         case XEN_DOMCTL_PFINFO_L4TAB | XEN_DOMCTL_PFINFO_LPINTAB:
-
+        /* SUNNY: Converts the pfns to mfns */
             mfns[nr_pages++] = ctx->restore.ops.pfn_to_gfn(ctx, pfns[i]);
             break;
         }
@@ -254,7 +254,8 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
     /* Nothing to do? */
     if ( nr_pages == 0 )
         goto done;
-
+    /* SUNNY: Maps the mfns onto the virtual address space that has
+     * the corresponding pfns */
     mapping = guest_page = xenforeignmemory_map(xch->fmem,
         ctx->domid, PROT_READ | PROT_WRITE,
         nr_pages, mfns, map_errs);
@@ -286,6 +287,10 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
         }
 
         /* Undo page normalisation done by the saver. */
+        /*
+         * SUNNY: This is done ON the actual page - may be change some bits
+         * in the actual page???
+         */
         rc = ctx->restore.ops.localise_page(ctx, types[i], page_data);
         if ( rc )
         {
@@ -332,6 +337,7 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
 static int handle_page_data(struct xc_sr_context *ctx, struct xc_sr_record *rec)
 {
     xc_interface *xch = ctx->xch;
+    /* SUNNY: rec->data # of pfns */
     struct xc_sr_rec_page_data_header *pages = rec->data;
     unsigned i, pages_of_data = 0;
     int rc = -1;

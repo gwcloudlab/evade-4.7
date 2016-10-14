@@ -82,9 +82,9 @@ struct xc_sr_rhdr
 /* PAGE_DATA */
 struct xc_sr_rec_page_data_header
 {
-    uint32_t count;
+    uint32_t count; /* SUNNY: # of pfns */
     uint32_t _res1;
-    uint64_t pfn[0];
+    uint64_t pfn[0]; /* SUNNY: array of pfns: pfn[0]...pfn[count-1] */
 };
 
 #define PAGE_DATA_PFN_MASK  0x000fffffffffffffULL
