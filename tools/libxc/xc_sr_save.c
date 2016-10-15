@@ -925,16 +925,17 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
 
     //fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
 
-    write(fdone, "VMI Run", 7);		//Write to Pipe 1
-    fsync(fdone);
+	write(fdone, "VMI Run", 7);		//Write to Pipe 1
+	fprintf(stderr, "Write Successfully!!\n");
+	fsync(fdone);
 
     //while(fdtwo){                         //Read Pipe 2
     //    if (read(fdtwo, buf, MAX_BUF) != 10){
     //        continue;
     //    }
     //    else{
-    read(fdtwo, buf, MAX_BUF);
-    fprintf(stderr,"Received: %s\n", buf);
+	read(fdtwo, buf, MAX_BUF);
+	fprintf(stderr,"Received: %s\n", buf);
     //        break;
     //    }
     //}

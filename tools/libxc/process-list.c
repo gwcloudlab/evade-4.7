@@ -60,27 +60,31 @@ int main (int argc, char **argv)
     char * fftwo = "/home/zhen/fftwo";
     char buf[MAX_BUF];
 
-
     mkfifo(ffone, 0666);        //Create Pipe 1
+/*-----------------------End Linux Pipe--------------------------------*/
 
     fdone = open(ffone, O_RDONLY);      //Open Pipe 1 for Read
 
     fdtwo = open(fftwo, O_WRONLY);      //open Pipe 2 for Write
 
-    while (fdone){                 //Read pipe 1
+    while (1){                 //Read pipe 1
 
-        if (read(fdone, buf, MAX_BUF) != 7){
-            continue;
-        }
+//    fdone = open(ffone, O_RDONLY);      //Open Pipe 1 for Read
 
-        else{
-            printf("Received: %s\n", buf);
-            break;
-        }
-    }
-/*-----------------------End Linux Pipe--------------------------------*/
+//    fdtwo = open(fftwo, O_WRONLY);      //open Pipe 2 for Write
 
-    /* this is the VM or file that we are looking at */
+//        if (read(fdone, buf, MAX_BUF) != 7){
+//            continue;
+//        }
+
+//        else{
+//            printf("Received: %s\n", buf);
+//            break;
+//        }
+    printf("New Iteration Starts!!\n");
+    read(fdone, buf, MAX_BUF);
+    printf("Received: %s\n", buf);    
+/* this is the VM or file that we are looking at */
     if (argc != 2) {
         printf("Usage: %s <vmname>\n", argv[0]);
         return 1;
@@ -200,13 +204,16 @@ int main (int argc, char **argv)
     } while(next_list_entry != list_head);
 
 /*---------------------Linux Pipe---------------------------*/
+    vmi_resume_vm(vmi);
+
     write(fdtwo, "VMI Finish", 10);
     fsync(fdtwo);
 
-    close(fdone);
-    close(fdtwo);
-    unlink(ffone);
+//    close(fdone);
+//    close(fdtwo);
+    //unlink(ffone);
 /*-----------------------End Linux Pipe--------------------------------*/
+    }
 
 error_exit:
     /* resume the vm */
