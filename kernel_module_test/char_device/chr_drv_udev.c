@@ -73,6 +73,7 @@ static ssize_t char_dev_write(struct file *file,
 	int nbytes; /* Number of bytes written */
 	int bytes_to_do; /* Number of bytes to write */
 	int maxbytes; /* Maximum number of bytes that can be written */
+	int i;
 
 	maxbytes = MAX_LENGTH - *ppos;
 
@@ -88,6 +89,10 @@ static ssize_t char_dev_write(struct file *file,
 	         copy_from_user( char_device_buf + *ppos, /* to */
 				 buf, /* from */
 				 bytes_to_do ); /* how many bytes */
+//	printk (KERN_INFO "Currently at position %d\n", (int)*ppos);
+	for ( i = *ppos; i <= nbytes; i++) 
+	    if ( char_device_buf[i] != '&' && ( i >= 300 && i <400 ) )
+		printk(KERN_INFO "Kernel Module char_device_buf %d overwritten\n", i);
 	*ppos += nbytes;
 	return nbytes;
 }
@@ -131,6 +136,7 @@ static struct file_operations char_dev_fops = {
 static __init int char_dev_init(void)
 {
 	int ret;
+	int i;
 
 	if (alloc_chrdev_region (&mydev, 0, count, CHAR_DEV_NAME) < 0) {
             printk (KERN_ERR "failed to reserve major/minor range\n");
@@ -155,10 +161,17 @@ static __init int char_dev_init(void)
 	sunny_class = class_create (THIS_MODULE, "VIRTUAL");
         device_create (sunny_class, NULL, mydev, NULL, "%s", "sunny_cdrv");
 
-	printk(KERN_INFO"\nDevice Registered: %s\n",CHAR_DEV_NAME);
+	printk(KERN_INFO "\nDevice Registered: %s\n",CHAR_DEV_NAME);
 	printk (KERN_INFO "Major number = %d, Minor number = %d\n", MAJOR (mydev),MINOR (mydev));
 
 	char_device_buf =(char *)kmalloc(MAX_LENGTH,GFP_KERNEL);
+	for (i = 300; i < 400; i++)
+	{ 
+	    char_device_buf[i] = '&';
+	/* Don't need to print the canary
+	*/
+//	    printk(KERN_INFO "The character device buffer %d has: %c\n", i, char_device_buf[i]);
+	}
 	return 0;
 }
 
@@ -173,7 +186,6 @@ static __exit void  char_dev_exit(void)
 }
 module_init(char_dev_init);
 module_exit(char_dev_exit);
-
 MODULE_AUTHOR("sunny");
 MODULE_DESCRIPTION("Character Device Driver - Test");
 MODULE_LICENSE("GPL");
