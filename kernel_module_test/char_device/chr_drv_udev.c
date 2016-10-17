@@ -89,7 +89,6 @@ static ssize_t char_dev_write(struct file *file,
 	         copy_from_user( char_device_buf + *ppos, /* to */
 				 buf, /* from */
 				 bytes_to_do ); /* how many bytes */
-//	printk (KERN_INFO "Currently at position %d\n", (int)*ppos);
 	for ( i = *ppos; i <= nbytes; i++) 
 	    if ( char_device_buf[i] != '&' && ( i >= 300 && i <400 ) )
 		printk(KERN_INFO "Kernel Module char_device_buf %d overwritten\n", i);
@@ -170,7 +169,7 @@ static __init int char_dev_init(void)
 	    char_device_buf[i] = '&';
 	/* Don't need to print the canary
 	*/
-//	    printk(KERN_INFO "The character device buffer %d has: %c\n", i, char_device_buf[i]);
+        printk(KERN_INFO "The character device buffer %d has: %c\n", i, char_device_buf[i]);
 	}
 	return 0;
 }
