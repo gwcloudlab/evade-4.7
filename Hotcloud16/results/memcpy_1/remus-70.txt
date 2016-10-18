@@ -1,0 +1,15 @@
+Average Statistics using 70 msec remus interval
+*****************************
+Total time VM was suspended: 
+0.0247359
+Suspend_domain function call time: 
+0.000876482
+Resume function call time: 
+0.00130168
+Dirty page sent time: 
+0.0142824
+Writev_exact time: 
+0.000188784
+Avg. Dirty page count: 
+2368.49
+*****************************
