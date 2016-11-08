@@ -597,9 +597,51 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     char *progress_str = NULL;
     int rc;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
-                                    &ctx->save.dirty_bitmap_hbuf);
+                                    &ctx->save.dirty_bitmap_hbuf);    
+
+/*---------------------Linux Pipe---------------------------*/
+    int fdone;             //Linux Pipe 1
+    int fdtwo;            //Linux Pipe 2
+    char * ffone = "/home/zhen/ffone";        //Linux Pipe
+    char * fftwo = "/home/zhen/fftwo";
+    char buf[MAX_BUF];
+
+    mkfifo(fftwo, 0666);        //Create Pipe 2
+
+    fdone = open(ffone, O_WRONLY);      //Open Pipe 1 for Write
+
+    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+/*-----------------------End Linux Pipe--------------------------------*/
 
     rc = suspend_domain(ctx);
+
+/*-----------------------Linux Pipe--------------------------------*/
+    //mkfifo(fftwo, 0666);      //Create Pipe 2
+
+    //fdone = open(ffone, O_WRONLY);    //Open Pipe 1 for Write
+
+    //fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+
+    write(fdone, "VMI Run", 7);             //Write to Pipe 1
+    fprintf(stderr, "Write Successfully!!\n");
+    fsync(fdone);
+
+    //while(fdtwo){                         //Read Pipe 2
+    //    if (read(fdtwo, buf, MAX_BUF) != 10){
+    //        continue;
+    //    }
+    //    else{
+    read(fdtwo, buf, MAX_BUF);
+    fprintf(stderr,"Received: %s\n", buf);
+    //        break;
+    //    }
+    //}
+
+    //close(fdone);
+    //close(fdtwo);
+    //unlink(fftwo);
+/*-----------------------End Linux Pipe--------------------------------*/
+
     if ( rc )
         goto out;
 
@@ -808,20 +850,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
     xc_interface *xch = ctx->xch;
     int rc, saved_rc = 0, saved_errno = 0;
 
-/*---------------------Linux Pipe---------------------------*/
-    int fdone;             //Linux Pipe 1
-    int fdtwo;            //Linux Pipe 2
-    char * ffone = "/home/zhen/ffone";        //Linux Pipe
-    char * fftwo = "/home/zhen/fftwo";
-    char buf[MAX_BUF];
-
-    mkfifo(fftwo, 0666);        //Create Pipe 2
-
-    fdone = open(ffone, O_WRONLY);      //Open Pipe 1 for Write
-
-    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
-/*-----------------------End Linux Pipe--------------------------------*/
-
     IPRINTF("Saving domain %d, type %s",
             ctx->domid, dhdr_type_to_str(guest_type));
 
@@ -893,34 +921,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 }
             }
 
-/*-----------------------Linux Pipe--------------------------------*/
-    //mkfifo(fftwo, 0666);      //Create Pipe 2
-
-    //fdone = open(ffone, O_WRONLY);    //Open Pipe 1 for Write
-
-    //fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
-
-            write(fdone, "VMI Run", 7);             //Write to Pipe 1
-            fprintf(stderr, "Write Successfully!!\n");
-            fsync(fdone);
-
-    //while(fdtwo){                         //Read Pipe 2
-    //    if (read(fdtwo, buf, MAX_BUF) != 10){
-    //        continue;
-    //    }
-    //    else{
-            read(fdtwo, buf, MAX_BUF);
-            fprintf(stderr,"Received: %s\n", buf);
-    //        break;
-    //    }
-    //}
-
-    //close(fdone);
-    //close(fdtwo);
-    //unlink(fftwo);
-/*-----------------------End Linux Pipe--------------------------------*/
-
-
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
             if ( rc <= 0 )
                 goto err;
@@ -946,32 +946,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             }
         }
 
-/*-----------------------Linux Pipe--------------------------------*/
-    //mkfifo(fftwo, 0666);	//Create Pipe 2
-
-    //fdone = open(ffone, O_WRONLY);	//Open Pipe 1 for Write
-
-    //fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
-
-//	write(fdone, "VMI Run", 7);		//Write to Pipe 1
-//	fprintf(stderr, "Write Successfully!!\n");
-//	fsync(fdone);
-
-    //while(fdtwo){                         //Read Pipe 2
-    //    if (read(fdtwo, buf, MAX_BUF) != 10){
-    //        continue;
-    //    }
-    //    else{
-//	read(fdtwo, buf, MAX_BUF);
-//	fprintf(stderr,"Received: %s\n", buf);
-    //        break;
-    //    }
-    //}
-
-    //close(fdone);
-    //close(fdtwo);
-    //unlink(fftwo);
-/*-----------------------End Linux Pipe--------------------------------*/
     } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 
     xc_report_progress_single(xch, "End of stream");
