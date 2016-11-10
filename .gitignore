@@ -311,6 +311,7 @@ tools/include/xen-foreign/arm64.h
 tools/misc/xen-hptool
 tools/misc/xen-mfndump
 tools/libxc/_*.[ch]
+tools/libxc/*.remus
 tools/libxl/_*.[ch]
 tools/libxl/testidl
 tools/libxl/testidl.c

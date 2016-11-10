@@ -15,6 +15,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <time.h>
+
 #include "xc_sr_common.h"
 
 #define MAX_BUF 1024
@@ -599,6 +601,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);    
 
+    struct timespec vmistart={0,0}, vmiend={0,0};
+
 /*---------------------Linux Pipe---------------------------*/
     int fdone;             //Linux Pipe 1
     int fdtwo;            //Linux Pipe 2
@@ -622,6 +626,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 
     //fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
 
+    clock_gettime(CLOCK_MONOTONIC, &vmistart);
+
     write(fdone, "VMI Run", 7);             //Write to Pipe 1
     fprintf(stderr, "Write Successfully!!\n");
     fsync(fdone);
@@ -636,6 +642,12 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     //        break;
     //    }
     //}
+
+    clock_gettime(CLOCK_MONOTONIC, &vmiend);
+
+    DPRINTF("VMI is taking about %.9f seconds\n",
+            (1.0*(vmiend.tv_sec - vmistart.tv_sec)) +
+            (1.0e-9*(vmiend.tv_nsec - vmistart.tv_nsec)));
 
     //close(fdone);
     //close(fdtwo);

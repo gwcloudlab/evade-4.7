@@ -67,23 +67,6 @@ int main (int argc, char **argv)
 
     fdtwo = open(fftwo, O_WRONLY);      //open Pipe 2 for Write
 
-    while (1){                 //Read pipe 1
-
-//    fdone = open(ffone, O_RDONLY);      //Open Pipe 1 for Read
-
-//    fdtwo = open(fftwo, O_WRONLY);      //open Pipe 2 for Write
-
-//        if (read(fdone, buf, MAX_BUF) != 7){
-//            continue;
-//        }
-
-//        else{
-//            printf("Received: %s\n", buf);
-//            break;
-//        }
-    printf("New Iteration Starts!!\n");
-    read(fdone, buf, MAX_BUF);
-    printf("Received: %s\n", buf);    
 /* this is the VM or file that we are looking at */
     if (argc != 2) {
         printf("Usage: %s <vmname>\n", argv[0]);
@@ -160,6 +143,29 @@ int main (int argc, char **argv)
     }
 
     next_list_entry = list_head;
+
+    while (1){                 //Read pipe 1
+
+//    fdone = open(ffone, O_RDONLY);      //Open Pipe 1 for Read
+
+//    fdtwo = open(fftwo, O_WRONLY);      //open Pipe 2 for Write
+
+//        if (read(fdone, buf, MAX_BUF) != 7){
+//            continue;
+//        }
+
+//        else{
+//            printf("Received: %s\n", buf);
+//            break;
+//        }
+    printf("New Iteration Starts!!\n");
+    read(fdone, buf, MAX_BUF);
+    printf("Received: %s\n", buf);
+/* this is the VM or file that we are looking at */
+    if (argc != 2) {
+        printf("Usage: %s <vmname>\n", argv[0]);
+        return 1;
+    } // if
 
     /* walk the task list */
     do {
