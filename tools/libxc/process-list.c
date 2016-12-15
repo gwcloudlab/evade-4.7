@@ -56,6 +56,7 @@ int main (int argc, char **argv)
 /*---------------------Linux Pipe---------------------------*/
     int fdone;             //Linux Pipe 1
     int fdtwo;            //Linux Pipe 2
+    int safe;		//Flag (1 for Safe or 0 for Dangerous)
     char * ffone = "/home/zhen/ffone";        //Linux Pipe
     char * fftwo = "/home/zhen/fftwo";
     char buf[MAX_BUF];
@@ -170,6 +171,8 @@ int main (int argc, char **argv)
     /* walk the task list */
     do {
 
+	safe = 0;           //By default, assume VM is not safe
+
         current_process = next_list_entry - tasks_offset;
 
         /* Note: the task_struct that we are looking at has a lot of
@@ -192,6 +195,10 @@ int main (int argc, char **argv)
             goto error_exit;
         }
 
+	if (procname == "ping"){
+	    break;
+	}
+
         /* print out the process name */
         printf("[%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
         if (procname) {
@@ -207,14 +214,22 @@ int main (int argc, char **argv)
             goto error_exit;
         }
 
+	safe = 1;		//After all scan, return VM safe
+
     } while(next_list_entry != list_head);
 
 /*---------------------Linux Pipe---------------------------*/
     vmi_resume_vm(vmi);
 
-    write(fdtwo, "VMI Finish", 10);
-    fsync(fdtwo);
+    if (safe == 1) {
+        write(fdtwo, "VMI Finish", 10);
+        fsync(fdtwo);
+    }
 
+    else {
+	write(fdtwo, "VM not Safe", 11);
+        fsync(fdtwo);
+    }
 //    close(fdone);
 //    close(fdtwo);
     //unlink(ffone);
