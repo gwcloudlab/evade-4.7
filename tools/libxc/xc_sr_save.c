@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <arpa/inet.h>
-
+#include <libxl.h>
 #include "xc_sr_common.h"
 
 #include <time.h>
@@ -14,6 +14,7 @@ struct timespec istart={0,0}, iend={0,0};
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
+unsigned nr_end_checkpoint = 0;
 
 /*
  * Writes an Image header and Domain header into the stream.
@@ -176,7 +177,6 @@ static int write_batch(struct xc_sr_context *ctx)
         dirtied_bckp_mfns[nr_pages] = dirtied_bckp_mfns[i];
         mfns[nr_pages] = mfns[i];
         ++nr_pages;
-        //mfns[nr_pages++] = mfns[i];
     }
 
     if ( nr_pages > 0 )
@@ -229,6 +229,10 @@ static int write_batch(struct xc_sr_context *ctx)
             {
                 local_pages[i] = page;
             }
+	    /* Copy data via memcpy
+	       memcopied == 1
+	       READ_MFNS = 0
+	    */
             else if ( READ_MFNS && i > 10 ) /* `page` hasn't been modified */
             {
                 bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
@@ -255,6 +259,10 @@ static int write_batch(struct xc_sr_context *ctx)
             {
                 guest_data[i] = page;
             }
+	    /* Send data via writev function call
+	       memcopied == 0
+	       READ_MFNS = 1
+	    */
             else if ( READ_MFNS && !memcopied )
             {
                     guest_data[j] = page;
@@ -273,15 +281,6 @@ static int write_batch(struct xc_sr_context *ctx)
 
     if ( READ_MFNS && !remus_failover )
         nr_pfns = j;
-
-    //if (nr_pfns == 0)
-    //{
-    //    guest_data[j] = page;
-    //    pfns_to_send[j] = ctx->save.batch_pfns[i];
-    //    assert(pfns_to_send[j] <= ctx->x86_pv.max_pfn);
-    //    ++j;
-    //    ++nr_pages;
-    //}
 
     rec_pfns = malloc(nr_pfns * sizeof(*rec_pfns));
     if ( !rec_pfns )
@@ -337,14 +336,14 @@ static int write_batch(struct xc_sr_context *ctx)
     }
     clock_gettime(CLOCK_MONOTONIC, &istart);
 
-    rc_writev = writev_exact(ctx->fd, iov, iovcnt);
+    if (!READ_MFNS)
+	rc_writev = writev_exact(ctx->fd, iov, iovcnt);
 
     clock_gettime(CLOCK_MONOTONIC, &iend);
     DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
             (1.0*(iend.tv_sec - istart.tv_sec)) +
             (1.0e-9*(iend.tv_nsec - istart.tv_nsec)));
 
-    //if ( writev_exact(ctx->fd, iov, iovcnt) )
     if( rc_writev )
     {
         PERROR("Failed to write page data to stream");
@@ -681,11 +680,10 @@ static int get_mfns_from_backup(struct xc_sr_context *ctx)
     FILE *file = fopen("/tmp/test.txt", "r");
     unsigned long num, i = 0;
     int rc = 0;
-
-    fscanf(file, "%d", &bckp_domid);
+    int a;
+    a = fscanf(file, "%d", &bckp_domid);
     while(fscanf(file, "%lu", &num) > 0) {
         bckp_mfns[i] = num;
-        //fprintf(stderr, "bckp_mfns[%lu] = %lu\n", i, bckp_mfns[i]);
         i++;
     }
     fclose(file);
@@ -702,7 +700,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
-    int rc;
+    int rc = 0;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
@@ -716,6 +714,17 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
             (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
     if ( rc )
         goto out;
+
+/* 
+ *  TODO: Add LibVMI pipes to test whether the memory is sane
+ *  send a call to the LibVMI library for introspection
+ *  recv function call to recv "Accept/Reject"
+*/
+
+    if (nr_end_checkpoint == 100)
+        return 100;
+
+    nr_end_checkpoint++;
 
     if ( xc_shadow_control(
              xch, ctx->domid, XEN_DOMCTL_SHADOW_OP_CLEAN,
@@ -925,11 +934,10 @@ static void cleanup(struct xc_sr_context *ctx)
 /*
  * Save a domain.
  */
-static int save(struct xc_sr_context *ctx, uint16_t guest_type)
+static /*int*/void save(struct xc_sr_context *ctx, uint16_t guest_type)
 {
     xc_interface *xch = ctx->xch;
     int rc, saved_rc = 0, saved_errno = 0;
-    unsigned nr_end_checkpoint = 0;
 
     IPRINTF("Saving domain %d, type %s",
             ctx->domid, dhdr_type_to_str(guest_type));
@@ -967,9 +975,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         else
             rc = send_domain_memory_nonlive(ctx);
 
-        if ( rc )
-            goto err;
-
         if ( !ctx->dominfo.shutdown ||
              (ctx->dominfo.shutdown_reason != SHUTDOWN_suspend) )
         {
@@ -977,8 +982,10 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             rc = -1;
             goto err;
         }
-        rc = ctx->save.ops.end_of_checkpoint(ctx);
-        nr_end_checkpoint++;
+	if (rc == 100)
+	    break;
+
+       rc = ctx->save.ops.end_of_checkpoint(ctx);
         DPRINTF("SR: Number of end checkpoints sent: %u", nr_end_checkpoint);
 
         if ( rc )
@@ -1044,30 +1051,27 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 goto err;
             }
         }
-        //if ( READ_MFNS == 123 )
+	/*
+	 *  For not sending pages through writev, 
+	 *  we copy the backup's pages into a file
+	 *  and read those memory pages into the primary
+	 */
         if ( !READ_MFNS )
         {
             if( get_mfns_from_backup(ctx) )
                 DPRINTF("SR: Didn't read mfns");
-            READ_MFNS = 1;
+            READ_MFNS = 0;
         }
 
-        //if (nr_end_checkpoint == 100){
-        //    //rc = ctx->save.ops.end_of_checkpoint(ctx);
-        //    rc = write_checkpoint_record(ctx);
-        //    //rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
-        //    break;
-        //}
-    } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
+   } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 
-    xc_report_progress_single(xch, "End of stream");
-
-    rc = write_end_record(ctx);
-    if ( rc )
+   xc_report_progress_single(xch, "End of stream");
+   rc = write_end_record(ctx);
+   if ( rc )
         goto err;
 
     xc_report_progress_single(xch, "Complete");
-    goto done;
+   goto done;
 
  err:
     saved_errno = errno;
@@ -1084,6 +1088,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
     }
 
     return rc;
+
 };
 
 int xc_domain_save(xc_interface *xch, int io_fd, uint32_t dom,
