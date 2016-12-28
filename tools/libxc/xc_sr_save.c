@@ -1,8 +1,22 @@
 #include <assert.h>
-#include <arpa/inet.h>
 #include <libxl.h>
 #include "xc_sr_common.h"
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <assert.h>
+#include <arpa/inet.h>
 
+#include <stdlib.h>
+#include <unistd.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/mman.h>
+
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <time.h>
 
 struct timespec tstart={0,0}, tend={0,0};
@@ -11,10 +25,13 @@ struct timespec dstart={0,0}, dend={0,0};
 struct timespec pstart={0,0}, pend={0,0};
 struct timespec istart={0,0}, iend={0,0};
 
+#define MAX_BUF 1024
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
 unsigned nr_end_checkpoint = 0;
+
+
 
 /*
  * Writes an Image header and Domain header into the stream.
@@ -689,7 +706,60 @@ static int get_mfns_from_backup(struct xc_sr_context *ctx)
     fclose(file);
     return rc;
 }
+#if 0
+int create_pipe()
+{
+    char* start_addr = NULL;//argv[1];
+    char* end_addr = NULL;//argv[2];
+    char* space = " ";
+    char* addr = NULL;
 
+    int fdone;             //Linux Pipe 1
+    int fdtwo;            //Linux Pipe 2
+
+    int rc;
+
+    char * ffone = "/home/harpreet10oct/test_dir_sample_code/ffone";        //Linux Pipe
+    char * fftwo = "/home/harpreet10oct/test_dir_sample_code/fftwo";
+    char buf[MAX_BUF];
+
+    start_addr = "ffffffff855fd000";
+    end_addr = "ffffffff855fd004";
+
+    addr = (char *) malloc(sizeof(char) * strlen(start_addr) + 1);
+
+    strncpy(addr, start_addr, sizeof(char) * strlen(start_addr) + 1);
+    strncat(addr, space, sizeof(char) * (strlen(addr) + 2));
+    strncat(addr, end_addr, sizeof(char) * (strlen(addr) + strlen(end_addr) + 1));
+
+    printf("Value: %s\n", addr);
+/*---------------------Linux Pipe---------------------------*/
+
+
+    mkfifo(fftwo, 0666);        //Create Pipe 2
+
+    fdone = open(ffone, O_WRONLY);      //Open Pipe 1 for Write
+
+    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+/*-----------------------End Linux Pipe--------------------------------*/
+/*-----------------------Linux Pipe--------------------------------*/
+    rc = write(fdone, addr, strlen(addr)+1);             //Write to Pipe 1
+    fprintf(stderr, "Write Successfully!!\n");
+    fsync(fdone);
+
+    rc = read(fdtwo, buf, MAX_BUF);
+    fprintf(stderr,"Received: %s\n", buf);
+    fsync(fdtwo);
+
+    close(fdone);
+    close(fdtwo);
+    unlink(fftwo);
+/*-----------------------End Linux Pipe--------------------------------*/
+
+    addr = NULL;
+    return 1;
+}
+#endif
 /*
  * Suspend the domain and send dirty memory.
  * This is the last iteration of the live migration and the
@@ -701,6 +771,25 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
     int rc = 0;
+
+
+/*-------------------------------------------------------------------------*/
+    char* start_addr = NULL;//argv[1];
+    char* end_addr = NULL;//argv[2];
+    char* space = " ";
+    char* addr = NULL;
+
+    int fdone;             //Linux Pipe 1
+    int fdtwo;            //Linux Pipe 2
+
+//    int rc;
+
+    char * ffone = "/home/harpreet10oct/test_dir_sample_code/ffone";        //Linux Pipe
+    char * fftwo = "/home/harpreet10oct/test_dir_sample_code/fftwo";
+    char buf[MAX_BUF];
+
+/*---------------------------------------------------------------------------*/
+
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
@@ -715,12 +804,57 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     if ( rc )
         goto out;
 
+
+/*--------------------------------------------------------------------------*/
+    start_addr = "ffffffff855fd000";
+    end_addr = "ffffffff855fd004";
+
+    addr = (char *) malloc(sizeof(char) * strlen(start_addr) + 1);
+
+    strncpy(addr, start_addr, sizeof(char) * strlen(start_addr) + 1);
+    strncat(addr, space, sizeof(char) * (strlen(addr) + 2));
+    strncat(addr, end_addr, sizeof(char) * (strlen(addr) + strlen(end_addr) + 1));
+
+    printf("Value: %s\n", addr);
 /* 
  *  TODO: Add LibVMI pipes to test whether the memory is sane
  *  send a call to the LibVMI library for introspection
  *  recv function call to recv "Accept/Reject"
 */
 
+/*---------------------Linux Pipe---------------------------*/
+    mkfifo(fftwo, 0666);        //Create Pipe 2
+
+    fdone = open(ffone, O_WRONLY);      //Open Pipe 1 for Write
+
+    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+/*-----------------------End Linux Pipe--------------------------------*/
+/*-----------------------Linux Pipe--------------------------------*/
+    rc = write(fdone, addr, strlen(addr)+1);             //Write to Pipe 1
+    fprintf(stderr, "Write Successfully!!\n");
+    fsync(fdone);
+
+    rc = read(fdtwo, buf, MAX_BUF);
+    fprintf(stderr,"Received: %s\n", buf);
+    fsync(fdtwo);
+
+    close(fdone);
+    close(fdtwo);
+    unlink(fftwo);
+/*-----------------------End Linux Pipe--------------------------------*/
+
+    addr = NULL;
+    //return 1;
+
+/*---------------------------------------------------------------------*/
+
+
+
+
+/*
+    if ( !create_pipe() )
+	DPRINTF("Error encountered while running VMI\n");
+*/    
     if (nr_end_checkpoint == 100)
         return 100;
 
@@ -934,7 +1068,7 @@ static void cleanup(struct xc_sr_context *ctx)
 /*
  * Save a domain.
  */
-static /*int*/void save(struct xc_sr_context *ctx, uint16_t guest_type)
+static int/*void*/ save(struct xc_sr_context *ctx, uint16_t guest_type)
 {
     xc_interface *xch = ctx->xch;
     int rc, saved_rc = 0, saved_errno = 0;

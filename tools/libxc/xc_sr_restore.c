@@ -884,7 +884,7 @@ static int restore(struct xc_sr_context *ctx)
 
     return rc;
 }
-
+#if 0
 int vm_rollback(struct xc_sr_context *ctx)
 {
     xc_interface *xch = ctx->xch;
@@ -926,7 +926,7 @@ int vm_rollback(struct xc_sr_context *ctx)
 
     return rc;
 }
-
+#endif
 int xc_domain_restore(xc_interface *xch, int io_fd, uint32_t dom,
                       unsigned int store_evtchn, unsigned long *store_mfn,
                       domid_t store_domid, unsigned int console_evtchn,
