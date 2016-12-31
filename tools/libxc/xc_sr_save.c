@@ -851,8 +851,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 //    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
 /*-----------------------End Linux Pipe--------------------------------*/
 /*-----------------------Linux Pipe--------------------------------*/
-//    rc = write(fdone, addr, strlen(addr)+1);             //Write to Pipe 1
-    rc = write(fdone, addr, strlen(addr));             //Write to Pipe 1
+    rc = write(fdone, addr, strlen(addr)+1);             //Write to Pipe 1
+//    rc = write(fdone, addr, strlen(addr));             //Write to Pipe 1
 
 
     fprintf(stderr, "Write Successfully!!\n");
