@@ -19,18 +19,24 @@
 #include <sys/stat.h>
 #include <time.h>
 
+#include <libvmi/libvmi.h>
+
+
 struct timespec tstart={0,0}, tend={0,0};
 struct timespec sstart={0,0}, ssend={0,0};
 struct timespec dstart={0,0}, dend={0,0};
 struct timespec pstart={0,0}, pend={0,0};
 struct timespec istart={0,0}, iend={0,0};
 
+#define ADDR_SIZE 34
 #define MAX_BUF 1024
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
 unsigned nr_end_checkpoint = 0;
+int counter = 1;
 
+char* addr = NULL;
 
 
 /*
@@ -771,22 +777,21 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
     int rc = 0;
-
-
+ 
 /*-------------------------------------------------------------------------*/
-    char* start_addr = NULL;//argv[1];
-    char* end_addr = NULL;//argv[2];
+    char* start_addr = "ffff88001d669177";//argv[1];
+    char* end_addr = "ffff88001d66917b";//argv[2];
     char* space = " ";
-    char* addr = NULL;
+//    char* addr = NULL;
 
     int fdone;             //Linux Pipe 1
-    int fdtwo;            //Linux Pipe 2
+//    int fdtwo;            //Linux Pipe 2
 
 //    int rc;
 
     char * ffone = "/home/harpreet10oct/test_dir_sample_code/ffone";        //Linux Pipe
-    char * fftwo = "/home/harpreet10oct/test_dir_sample_code/fftwo";
-    char buf[MAX_BUF];
+//    char * fftwo = "/home/harpreet10oct/test_dir_sample_code/fftwo";
+//    char buf[MAX_BUF];
 
 /*---------------------------------------------------------------------------*/
 
@@ -806,16 +811,32 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 
 
 /*--------------------------------------------------------------------------*/
-    start_addr = "ffffffff855fd000";
-    end_addr = "ffffffff855fd004";
+//    start_addr = "ffff88001d669177";
+//    end_addr = "ffff88001d66917b";
 
-    addr = (char *) malloc(sizeof(char) * strlen(start_addr) + 1);
+    if (counter == 1)
+    {
+        addr = (char *) malloc(sizeof(char) * ADDR_SIZE);
+//        addr = (char *) malloc(sizeof(char) * strlen(start_addr) + 1);
+        strcpy(addr, start_addr);
+        strcat(addr, space);
+        strcat(addr, end_addr);
+    }
+/*
+    else
+        addr = (char *) malloc(sizeof(char) * strlen(start_addr) + 1);
+*/
+    counter = 2;
+	
+//    strncpy(addr, start_addr, sizeof(char) * strlen(start_addr) + 1);
+//    strcpy(addr, start_addr);
+//    strncat(addr, space, sizeof(char) * (strlen(addr) + 2));
+//    strcat(addr, space);
+//    strncat(addr, end_addr, sizeof(char) * (strlen(addr) + strlen(end_addr) + 1));
+//    strcat(addr, end_addr);
 
-    strncpy(addr, start_addr, sizeof(char) * strlen(start_addr) + 1);
-    strncat(addr, space, sizeof(char) * (strlen(addr) + 2));
-    strncat(addr, end_addr, sizeof(char) * (strlen(addr) + strlen(end_addr) + 1));
 
-    printf("Value: %s\n", addr);
+    fprintf(stderr,"Value: %s\n", addr);
 /* 
  *  TODO: Add LibVMI pipes to test whether the memory is sane
  *  send a call to the LibVMI library for introspection
@@ -823,31 +844,35 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 */
 
 /*---------------------Linux Pipe---------------------------*/
-    mkfifo(fftwo, 0666);        //Create Pipe 2
+//    mkfifo(fftwo, 0666);        //Create Pipe 2
 
     fdone = open(ffone, O_WRONLY);      //Open Pipe 1 for Write
 
-    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+//    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
 /*-----------------------End Linux Pipe--------------------------------*/
 /*-----------------------Linux Pipe--------------------------------*/
-    rc = write(fdone, addr, strlen(addr)+1);             //Write to Pipe 1
+//    rc = write(fdone, addr, strlen(addr)+1);             //Write to Pipe 1
+    rc = write(fdone, addr, strlen(addr));             //Write to Pipe 1
+
+
     fprintf(stderr, "Write Successfully!!\n");
     fsync(fdone);
 
-    rc = read(fdtwo, buf, MAX_BUF);
-    fprintf(stderr,"Received: %s\n", buf);
-    fsync(fdtwo);
+//    rc = read(fdtwo, buf, MAX_BUF);
+//    fprintf(stderr,"Received: %s\n", buf);
+//    fsync(fdtwo);
 
     close(fdone);
-    close(fdtwo);
-    unlink(fftwo);
-/*-----------------------End Linux Pipe--------------------------------*/
+//    close(fdtwo);
+//    unlink(fftwo);
 
-    addr = NULL;
+/*-----------------------End Linux Pipe--------------------------------*/
+    
+//    free(addr);
+//    addr = NULL;
     //return 1;
 
 /*---------------------------------------------------------------------*/
-
 
 
 
