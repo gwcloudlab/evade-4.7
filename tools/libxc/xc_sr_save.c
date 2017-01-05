@@ -785,13 +785,13 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 //    char* addr = NULL;
 
     int fdone;             //Linux Pipe 1
-//    int fdtwo;            //Linux Pipe 2
+    int fdtwo;            //Linux Pipe 2
 
 //    int rc;
 
     char * ffone = "/home/harpreet10oct/test_dir_sample_code/ffone";        //Linux Pipe
-//    char * fftwo = "/home/harpreet10oct/test_dir_sample_code/fftwo";
-//    char buf[MAX_BUF];
+    char * fftwo = "/home/harpreet10oct/test_dir_sample_code/fftwo";
+    char buf[MAX_BUF];
 
 /*---------------------------------------------------------------------------*/
 
@@ -844,11 +844,11 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 */
 
 /*---------------------Linux Pipe---------------------------*/
-//    mkfifo(fftwo, 0666);        //Create Pipe 2
+    mkfifo(fftwo, 0666);        //Create Pipe 2
 
     fdone = open(ffone, O_WRONLY);      //Open Pipe 1 for Write
 
-//    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
+    fdtwo = open(fftwo, O_RDONLY);      //open Pipe 2 for Read
 /*-----------------------End Linux Pipe--------------------------------*/
 /*-----------------------Linux Pipe--------------------------------*/
     rc = write(fdone, addr, strlen(addr)+1);             //Write to Pipe 1
@@ -858,13 +858,13 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     fprintf(stderr, "Write Successfully!!\n");
     fsync(fdone);
 
-//    rc = read(fdtwo, buf, MAX_BUF);
-//    fprintf(stderr,"Received: %s\n", buf);
-//    fsync(fdtwo);
+    rc = read(fdtwo, buf, MAX_BUF);
+    fprintf(stderr,"Received: %s\n", buf);
+    fsync(fdtwo);
 
     close(fdone);
-//    close(fdtwo);
-//    unlink(fftwo);
+    close(fdtwo);
+    unlink(fftwo);
 
 /*-----------------------End Linux Pipe--------------------------------*/
     
