@@ -731,7 +731,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     char* start_addr = "ffff88001d669177";  //subject to change frequently
     char* end_addr = "ffff88001d66917b";    //subject to change frequently
 
-    int rc, cb_rc;
+    int rc; 
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
@@ -785,7 +785,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
  *  Have to let the first checkpoint pass, as it doesn't send the vcpu information
  */
 
-    if (!buf && counter == 2)
+    if (buf && counter == 2)
     {
         close(xen_write_fd);
         close(xen_read_fd);
