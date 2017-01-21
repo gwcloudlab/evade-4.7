@@ -1,18 +1,19 @@
 #!/bin/zsh
 
 BENCH=autobench
-VMS=(opensuse64)
+VMS=(suse-web)
 DT=$(date +"%y-%m-%d")
 HOME='/home/sundarcs'
 mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
 #ssh sundarcs@10.0.0.42 "mkdir -p $BENCH"
 DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
-URI1='$URI1'
+URI1='/php/memcached-connect.php'
 
 INTS=(5 10 15 20 25 30 50 70 100)
+#INTS=(50)
 LOW_RATE=100
-HIGH_RATE=220
-RATE_STEP=20
+HIGH_RATE=200
+RATE_STEP=50
 NUM_CALL=100
 TOT_CONN=10000
 #time taken = TOT_CONN / (RATE * NUM_CALL) seconds
@@ -194,7 +195,7 @@ main ()
 {
     for VM in ${VMS[@]}; do
 
-        noremus $VM
+        #noremus $VM
 
         for interval in ${INTS[@]}; do
 
@@ -208,7 +209,7 @@ main ()
             remus-local $VM $interval
 
             # Remus with netbuf disabled on localhost
-            remus-local-nonet $VM $interval
+            # remus-local-nonet $VM $interval
 
         done
     done
