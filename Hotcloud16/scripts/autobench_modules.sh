@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 BENCH=autobench
-VMS=(opensuse64)
+VMS=(suse-web)
 DT=$(date +"%y-%m-%d")
 HOME='/home/sundarcs'
 mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
@@ -9,7 +9,7 @@ mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
 DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
 URI1='$URI1'
 
-INTS=(5 10 15 20 25 30 50 70 100)
+INTS=(10 15 20 25 30 50 70 100)
 LOW_RATE=100
 HIGH_RATE=220
 RATE_STEP=20
@@ -43,7 +43,7 @@ remus-remote ()
     ssh sundarcs@10.0.0.42 "sudo pkill xentop"
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy $vm--incoming"
+    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy machine--incoming"
     sleep 15
 }
 
@@ -65,7 +65,7 @@ remus-remote-nonet ()
     ssh sundarcs@10.0.0.42 "sudo pkill xentop"
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy $vm--incoming"
+    ssh 10.0.0.42 "echo HiVJbkb3 | sudo -S xl destroy machine--incoming"
     sleep 15
 }
 
@@ -87,7 +87,7 @@ remus-local ()
     sudo pkill xentop
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    sudo xl destroy $vm--incoming
+    sudo xl destroy machine--incoming
     #sudo pkill -USR1 xl
     sudo rmmod ifb && sudo modprobe ifb
     sudo rmmod ifb && sudo modprobe ifb
@@ -112,7 +112,7 @@ remus-local-nonet ()
     sudo pkill xentop
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    sudo xl destroy $vm--incoming
+    sudo xl destroy machine--incoming
     #sudo pkill -USR1 xl
     sudo rmmod ifb && sudo modprobe ifb
     sudo rmmod ifb && sudo modprobe ifb
@@ -194,7 +194,7 @@ main ()
 {
     for VM in ${VMS[@]}; do
 
-        noremus $VM
+        #noremus $VM
 
         for interval in ${INTS[@]}; do
 
