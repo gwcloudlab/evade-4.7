@@ -707,13 +707,16 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
                                     &ctx->save.dirty_bitmap_hbuf);
 
     clock_gettime(CLOCK_MONOTONIC, &sstart);
+    DPRINTF("SUNNY: Domain was suspending at %.9f seconds\n",
+            (1.0*(sstart.tv_sec) + (1.0e-9*(sstart.tv_nsec))));
 
     rc = suspend_domain(ctx);
-
+/*
     clock_gettime(CLOCK_MONOTONIC, &ssend);
     DPRINTF("SUNNY: suspend_domain fn call took %.9f seconds\n",
             (1.0*(ssend.tv_sec - sstart.tv_sec)) +
             (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
+*/
     if ( rc )
         goto out;
 
@@ -958,7 +961,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             goto err;
 
         DPRINTF("SUNNY: starting migration, suspending domain");
-        clock_gettime(CLOCK_MONOTONIC, &tstart);
+        //clock_gettime(CLOCK_MONOTONIC, &tstart);
 
         if ( ctx->save.live )
             rc = send_domain_memory_live(ctx);
@@ -1007,19 +1010,18 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 }
             }
 
-            clock_gettime(CLOCK_MONOTONIC, &pstart);
+            //clock_gettime(CLOCK_MONOTONIC, &pstart);
 
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
-
-            clock_gettime(CLOCK_MONOTONIC, &pend);
-            DPRINTF("SUNNY: postcopy fn call took %.9f seconds\n",
-            (1.0*(pend.tv_sec - pstart.tv_sec)) +
-            (1.0e-9*(pend.tv_nsec - pstart.tv_nsec)));
-
             clock_gettime(CLOCK_MONOTONIC, &tend);
-            DPRINTF("SUNNY: Domain was suspended for %.9f seconds\n",
-            (1.0*(tend.tv_sec - tstart.tv_sec)) +
-            (1.0e-9*(tend.tv_nsec - tstart.tv_nsec)));
+            DPRINTF("SUNNY: Domain was resumed at %.9f seconds\n",
+            (1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
+
+            //clock_gettime(CLOCK_MONOTONIC, &pend);
+            //DPRINTF("SUNNY: postcopy fn call took %.9f seconds\n",
+            //(1.0*(pend.tv_sec - pstart.tv_sec)) +
+            //(1.0e-9*(pend.tv_nsec - pstart.tv_nsec)));
+
 
             if ( rc <= 0 )
                 goto err;
