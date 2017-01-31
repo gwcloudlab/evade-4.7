@@ -102,7 +102,7 @@ int main (char** argv, int argc)
 	    fprintf(stderr, "Overflow encountered!!\n");
             fsync(vmi_write_fd);
 	    //goto del_xen_to_vmi;
-	    break;
+	    //break;
 	}
 	else
 	{
