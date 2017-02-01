@@ -28,6 +28,7 @@ struct timespec dstart={0,0}, dend={0,0};
 struct timespec pstart={0,0}, pend={0,0};
 struct timespec istart={0,0}, iend={0,0};
 
+struct timespec lvmi_start = {0, 0}, lvmi_end = {0, 0};
 #define MAX_BUF 1024
 int READ_MFNS = 0;
 uint32_t bckp_domid;
@@ -771,6 +772,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         xen_read_fd = open(xen_read_ff, O_RDONLY);      //open Pipe 2 for Read
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &lvmi_start);
+    DPRINTF("SUNNY: Writing to LibVMI at %.9f seconds\n", (1.0*(lvmi_start.tv_sec) + (1.0e-9*(lvmi_start.tv_nsec))));
     rc = write(xen_write_fd, vmi_req.st_addr, sizeof(void *));//Write start address to Pipe 1
     fsync(xen_write_fd);
     fprintf(stderr, "Written 1st address %" PRIu64 " Successfully!!\n", *(vmi_req.st_addr));
@@ -779,7 +782,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     rc = read(xen_read_fd, &buf, sizeof(int)); //Read Accept or Reject as 1 or 0
     fprintf(stderr,"REMUS: Received: %d\n", buf);
 
-
+    clock_gettime(CLOCK_MONOTONIC, &lvmi_end);
+    DPRINTF("SUNNY: Reading from LibVMI at %.9f seconds\n", (1.0*(lvmi_end.tv_sec) + (1.0e-9*(lvmi_end.tv_nsec))));
 
 /*--------------------------------------------------------------------------*/
 /*
