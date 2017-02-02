@@ -9,11 +9,11 @@ mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
 DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
 URI1='/php/memcached-connect.php'
 
-INTS=(5 10 15 20 25 30 50 70 100)
-#INTS=(50)
-LOW_RATE=100
+#INTS=(5 10 15 20 25 30 50 70 100)
+INTS=(50)
+LOW_RATE=200
 HIGH_RATE=200
-RATE_STEP=50
+RATE_STEP=20
 NUM_CALL=100
 TOT_CONN=10000
 #time taken = TOT_CONN / (RATE * NUM_CALL) seconds
@@ -88,7 +88,7 @@ remus-local ()
     sudo pkill xentop
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    sudo xl destroy $vm--incoming
+    sudo xl destroy machine--incoming
     #sudo pkill -USR1 xl
     sudo rmmod ifb && sudo modprobe ifb
     sudo rmmod ifb && sudo modprobe ifb
@@ -104,7 +104,7 @@ remus-local-nonet ()
     sudo xl -vvvv remus -Fnd -i $i $vm localhost > $DIR/$vm/remus-$BENCH-$i-local-nonet 2>&1 &
     echo -e "started remus, now sleep"
     sleep 15
-    tail -f $DIR/$vm/remus-$BENCH-$i-local > $DIR/$vm/remus-$BENCH-$i-local-nonet.log &
+    tail -f $DIR/$vm/remus-$BENCH-$i-local-nonet > $DIR/$vm/remus-$BENCH-$i-local-nonet.log &
     last_pid=$!
     echo -e "tailing remus log file"
     sudo xentop -b -d 1 > $DIR/$vm/remus-$BENCH-$i-local-nonet-xentop &
@@ -113,7 +113,7 @@ remus-local-nonet ()
     sudo pkill xentop
     echo -e "xentop killed and $BENCH ran"
     sudo kill -KILL $last_pid
-    sudo xl destroy $vm--incoming
+    sudo xl destroy machine--incoming
     #sudo pkill -USR1 xl
     sudo rmmod ifb && sudo modprobe ifb
     sudo rmmod ifb && sudo modprobe ifb
@@ -140,6 +140,13 @@ get-remus-results ()
         cd $DIR/$vm/
         echo "Results for $vm"
         for i in ${INTS[@]}; do
+            # the following is to avoid the numbers we get from live migration stage
+            # Grep the line number where the live migration is finished
+            a=$(grep -nr "Finished sending live memory" remus-$BENCH-$i-local | cut -d : -f 1)
+            # Add two lines to get to the correct line from where the checkpoint starts
+            a=$(($a+2))
+            # Delete the data from live migration
+            sed -i "1,${a}d" remus-$BENCH-$i-local
             echo -e "Average Statistics using $i msec remus interval" > remus-$i.txt
             echo -e "*****************************" >> remus-$i.txt
             echo -e "Total time VM was suspended: " >> remus-$i.txt
@@ -166,6 +173,14 @@ get-remus-nonet-results ()
         cd $DIR/$vm/
         echo "Results for $vm"
         for i in ${INTS[@]}; do
+            # the following is to avoid the numbers we get from live migration stage
+            # Grep the line number where the live migration is finished
+            a=$(grep -nr "Finished sending live memory" remus-$BENCH-$i-local-nonet | cut -d : -f 1)
+            # Add two lines to get to the correct line from where the checkpoint starts
+            a=$(($a+2))
+            # Delete the data from live migration
+            sed -i "1,${a}d" remus-$BENCH-$i-local-nonet
+
             echo -e "Average Statistics using $i msec remus interval" > remus-$i.txt
             echo -e "*****************************" >> remus-$i.txt
             echo -e "Total time VM was suspended: " >> remus-$i.txt
@@ -209,16 +224,16 @@ main ()
             remus-local $VM $interval
 
             # Remus with netbuf disabled on localhost
-            # remus-local-nonet $VM $interval
+            remus-local-nonet $VM $interval
 
         done
     done
 
-get-remus-results
+#get-remus-results
 
-plot-graph $VM $interval
+#plot-graph $VM $interval
 
-scp-all-results
+#scp-all-results
 
 }
 
