@@ -998,8 +998,8 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
              */
             ctx->save.live = false;
 
-            DPRINTF("SUNNY: Write Checkpoint record at %.9f seconds\n",
-            (1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
+            //DPRINTF("SUNNY: Write Checkpoint record at %.9f seconds\n",
+            //(1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
             rc = write_checkpoint_record(ctx);
             if ( rc )
                 goto err;
