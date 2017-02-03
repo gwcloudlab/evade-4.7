@@ -28,6 +28,7 @@ struct timespec dstart={0,0}, dend={0,0};
 struct timespec pstart={0,0}, pend={0,0};
 struct timespec istart={0,0}, iend={0,0};
 
+struct timespec lvmi_start = {0, 0}, lvmi_end = {0, 0};
 #define MAX_BUF 1024
 int READ_MFNS = 0;
 uint32_t bckp_domid;
@@ -728,7 +729,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
-    char* start_addr = "ffff88001d669177";  //subject to change frequently
+    char* start_addr = "7fbd553b80c0";//"ffff88001d669177";  //subject to change frequently
     char* end_addr = "ffff88001d66917b";    //subject to change frequently
 
     int rc; 
@@ -736,14 +737,15 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
                                     &ctx->save.dirty_bitmap_hbuf);
 
     clock_gettime(CLOCK_MONOTONIC, &sstart);
+    DPRINTF("SUNNY: Domain was suspending at %.9f seconds\n", (1.0*(sstart.tv_sec) + (1.0e-9*(sstart.tv_nsec))));
 
     rc = suspend_domain(ctx);
 
-    clock_gettime(CLOCK_MONOTONIC, &ssend);
+/*    clock_gettime(CLOCK_MONOTONIC, &ssend);
     DPRINTF("SUNNY: suspend_domain fn call took %.9f seconds\n",
             (1.0*(ssend.tv_sec - sstart.tv_sec)) +
             (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
-    if ( rc )
+ */   if ( rc )
         goto out;
 
     DPRINTF("Starting Address: %s\n", start_addr);
@@ -756,7 +758,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = (uint64_t) strtoul(start_addr, NULL, strlen(start_addr));
+    *(vmi_req.st_addr) = (uint64_t) strtoul(start_addr, NULL, 16);
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 
     DPRINTF("End Address: %s\n", end_addr);
@@ -770,15 +772,18 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         xen_read_fd = open(xen_read_ff, O_RDONLY);      //open Pipe 2 for Read
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &lvmi_start);
+    DPRINTF("SUNNY: Writing to LibVMI at %.9f seconds\n", (1.0*(lvmi_start.tv_sec) + (1.0e-9*(lvmi_start.tv_nsec))));
     rc = write(xen_write_fd, vmi_req.st_addr, sizeof(void *));//Write start address to Pipe 1
     fsync(xen_write_fd);
     fprintf(stderr, "Written 1st address %" PRIu64 " Successfully!!\n", *(vmi_req.st_addr));
 
     fprintf(stderr, "Reading from LibVMI\n");
     rc = read(xen_read_fd, &buf, sizeof(int)); //Read Accept or Reject as 1 or 0
-    fprintf(stderr,"Received: %d\n", buf);
+    fprintf(stderr,"REMUS: Received: %d\n", buf);
 
-
+    clock_gettime(CLOCK_MONOTONIC, &lvmi_end);
+    DPRINTF("SUNNY: Reading from LibVMI at %.9f seconds\n", (1.0*(lvmi_end.tv_sec) + (1.0e-9*(lvmi_end.tv_nsec))));
 
 /*--------------------------------------------------------------------------*/
 /*
@@ -787,6 +792,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 
     if (buf && counter == 2)
     {
+        fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
         close(xen_write_fd);
         close(xen_read_fd);
     	unlink(xen_read_ff);
@@ -1043,7 +1049,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             goto err;
 
         DPRINTF("SUNNY: starting migration, suspending domain");
-        clock_gettime(CLOCK_MONOTONIC, &tstart);
+        //clock_gettime(CLOCK_MONOTONIC, &tstart);
 
         if ( ctx->save.live )
             rc = send_domain_memory_live(ctx);
@@ -1094,19 +1100,18 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 }
             }
 
-            clock_gettime(CLOCK_MONOTONIC, &pstart);
+            //clock_gettime(CLOCK_MONOTONIC, &pstart);
 
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
-
+            clock_gettime(CLOCK_MONOTONIC, &tend);
+            DPRINTF("SUNNY: Domain was resumed at %.9f seconds\n",
+            (1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
+/*
             clock_gettime(CLOCK_MONOTONIC, &pend);
             DPRINTF("SUNNY: postcopy fn call took %.9f seconds\n",
             (1.0*(pend.tv_sec - pstart.tv_sec)) +
             (1.0e-9*(pend.tv_nsec - pstart.tv_nsec)));
-
-            clock_gettime(CLOCK_MONOTONIC, &tend);
-            DPRINTF("SUNNY: Domain was suspended for %.9f seconds\n",
-            (1.0*(tend.tv_sec - tstart.tv_sec)) +
-            (1.0e-9*(tend.tv_nsec - tstart.tv_nsec)));
+*/
 
             if ( rc <= 0 )
                 goto err;
