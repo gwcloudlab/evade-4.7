@@ -219,7 +219,7 @@ int main (int argc, char **argv)
     } while(next_list_entry != list_head);
 
 /*---------------------Linux Pipe---------------------------*/
-    vmi_resume_vm(vmi);
+    //vmi_resume_vm(vmi);
 
     if (safe == 1) {
         write(fdtwo, "VMI Finish", 10);
