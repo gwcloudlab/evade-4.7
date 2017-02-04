@@ -6,13 +6,14 @@ DT=$(date +"%y-%m-%d")
 HOME='/home/sundarcs'
 mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
 #ssh sundarcs@10.0.0.42 "mkdir -p $BENCH"
-DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
-URI1='/php/memcached-connect.php'
+DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH
+#URI1='/php/memcached-connect.php'
+URI1="/"
 
 #INTS=(5 10 15 20 25 30 50 70 100)
-INTS=(50)
-LOW_RATE=200
-HIGH_RATE=200
+INTS=(10)
+LOW_RATE=50
+HIGH_RATE=50
 RATE_STEP=20
 NUM_CALL=100
 TOT_CONN=10000
@@ -134,69 +135,23 @@ plot-graph ()
     done
 }
 
-get-remus-results ()
+get-remus-nonet-results()
 {
     for vm in ${VMS[@]}; do
         cd $DIR/$vm/
         echo "Results for $vm"
         for i in ${INTS[@]}; do
-            # the following is to avoid the numbers we get from live migration stage
-            # Grep the line number where the live migration is finished
-            a=$(grep -nr "Finished sending live memory" remus-$BENCH-$i-local | cut -d : -f 1)
-            # Add two lines to get to the correct line from where the checkpoint starts
-            a=$(($a+2))
-            # Delete the data from live migration
-            sed -i "1,${a}d" remus-$BENCH-$i-local
-            echo -e "Average Statistics using $i msec remus interval" > remus-$i.txt
-            echo -e "*****************************" >> remus-$i.txt
-            echo -e "Total time VM was suspended: " >> remus-$i.txt
-            grep "Domain was suspended" remus-$BENCH-$i-local | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Suspend_domain function call time: " >> remus-$i.txt
-            grep "suspend_domain" remus-$BENCH-$i-local | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Resume function call time: " >> remus-$i.txt
-            grep "postcopy" remus-$BENCH-$i-local | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Dirty page sent time: " >> remus-$i.txt
-            grep dirtied_pages remus-$BENCH-$i-local | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Writev_exact time: " >> remus-$i.txt
-            #grep writev remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'BEGIN {max = 0} {if ($1>max) max=$1} END {print max}' >> remus-$i.txt
-            grep "writev_exact" remus-$BENCH-$i-local | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Avg. Dirty page count: " >> remus-$i.txt
-            grep Dirty remus-$BENCH-$i-local | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "*****************************" >> remus-$i.txt
+            ~/evade-4.7/Hotcloud16/scripts/print_statistics.py remus-$BENCH-$i-local-nonet.log >> remus-$i-nonet.txt
         done
     done
 }
-
-get-remus-nonet-results ()
+get-remus-results()
 {
     for vm in ${VMS[@]}; do
         cd $DIR/$vm/
         echo "Results for $vm"
         for i in ${INTS[@]}; do
-            # the following is to avoid the numbers we get from live migration stage
-            # Grep the line number where the live migration is finished
-            a=$(grep -nr "Finished sending live memory" remus-$BENCH-$i-local-nonet | cut -d : -f 1)
-            # Add two lines to get to the correct line from where the checkpoint starts
-            a=$(($a+2))
-            # Delete the data from live migration
-            sed -i "1,${a}d" remus-$BENCH-$i-local-nonet
-
-            echo -e "Average Statistics using $i msec remus interval" > remus-$i.txt
-            echo -e "*****************************" >> remus-$i.txt
-            echo -e "Total time VM was suspended: " >> remus-$i.txt
-            grep "Domain was suspended" remus-$BENCH-$i-local-nonet | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Suspend_domain function call time: " >> remus-$i.txt
-            grep "suspend_domain" remus-$BENCH-$i-local-nonet | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Resume function call time: " >> remus-$i.txt
-            grep "postcopy" remus-$BENCH-$i-local-nonet | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Dirty page sent time: " >> remus-$i.txt
-            grep dirtied_pages remus-$BENCH-$i-local-nonet | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Writev_exact time: " >> remus-$i.txt
-            #grep writev remus-$BENCH-$i-local.log | awk '{print $8}' | awk 'BEGIN {max = 0} {if ($1>max) max=$1} END {print max}' >> remus-$i.txt
-            grep "writev_exact" remus-$BENCH-$i-local-nonet | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "Avg. Dirty page count: " >> remus-$i.txt
-            grep Dirty remus-$BENCH-$i-local-nonet | awk '{print $8}' | awk 'NR>2 {sum=sum+$1} END {print sum/NR}' >> remus-$i.txt
-            echo -e "*****************************" >> remus-$i.txt
+            ~/evade-4.7/Hotcloud16/scripts/print_statistics.py remus-$BENCH-$i-local.log >> remus-$i.txt
         done
     done
 }
@@ -224,12 +179,14 @@ main ()
             remus-local $VM $interval
 
             # Remus with netbuf disabled on localhost
-            remus-local-nonet $VM $interval
+            #remus-local-nonet $VM $interval
 
         done
     done
 
-#get-remus-results
+get-remus-results
+
+#get-remus-nonet-results
 
 #plot-graph $VM $interval
 
