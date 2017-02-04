@@ -1051,23 +1051,22 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         if ( rc )
             goto err;
 
-        DPRINTF("SUNNY: starting migration, suspending domain");
-        //clock_gettime(CLOCK_MONOTONIC, &tstart);
-
         if ( ctx->save.live ){
             rc = send_domain_memory_live(ctx);
             DPRINTF("SUNNY: Finished sending live memory");
         }
-        else if ( ctx->save.checkpointed != XC_MIG_STREAM_NONE )
+        else if ( ctx->save.checkpointed != XC_MIG_STREAM_NONE ) {
+            DPRINTF("SUNNY: starting checkpointing mechanism");
             rc = send_domain_memory_checkpointed(ctx);
+        }
         else
             rc = send_domain_memory_nonlive(ctx);
 
         if (rc == 100)
         {
             rc = system ("sudo xl pause opensuse64");    //pause the primary
-	    return 100;
-	}
+            return 100;
+        }
         if ( !ctx->dominfo.shutdown ||
              (ctx->dominfo.shutdown_reason != SHUTDOWN_suspend) )
         {
