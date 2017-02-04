@@ -633,14 +633,16 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     fsync(fdone);
 
     //while(fdtwo){                         //Read Pipe 2
-    //    if (read(fdtwo, buf, MAX_BUF) != 10){
-    //        continue;
-    //    }
+    if (read(fdtwo, buf, MAX_BUF) != 10){
+        printf("Received Unsafe Signal from LibVMI\n");
+	return rc;
+        }
     //    else{
-    read(fdtwo, buf, MAX_BUF);
+//    read(fdtwo, buf, MAX_BUF);
+    else{
     fprintf(stderr,"Received: %s\n", buf);
     //        break;
-    //    }
+    }
     //}
 
     clock_gettime(CLOCK_MONOTONIC, &vmiend);

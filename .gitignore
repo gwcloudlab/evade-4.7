@@ -27,6 +27,10 @@ cscope.in.out
 cscope.out
 cscope.po.out
 .config
+*.backup
+*.pipe
+*.pipe2
+*.remus
 
 dist
 stubdom/*.tar.gz

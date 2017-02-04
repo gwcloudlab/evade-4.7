@@ -1,29 +1,3 @@
-/* The LibVMI Library is an introspection library that simplifies access to 
- * memory in a target virtual machine or in a file containing a dump of 
- * a system's physical memory.  LibVMI is based on the XenAccess Library.
- *
- * Copyright 2011 Sandia Corporation. Under the terms of Contract
- * DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government
- * retains certain rights in this software.
- *
- * Author: Bryan D. Payne (bdpayne@acm.org)
- *
- * This file is part of LibVMI.
- *
- * LibVMI is free software: you can redistribute it and/or modify it under
- * the terms of the GNU Lesser General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version.
- *
- * LibVMI is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- * License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with LibVMI.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -38,7 +12,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "uthash.h"
+
 #define MAX_BUF 1024
+
+typedef struct example_proc_t {
+    //int id;
+    char *pname;
+    UT_hash_handle hh;
+} example_proc_t;
 
 int main (int argc, char **argv)
 {
@@ -52,6 +34,14 @@ int main (int argc, char **argv)
     vmi_pid_t pid = 0;
     unsigned long tasks_offset = 0, pid_offset = 0, name_offset = 0;
     status_t status;
+
+/*Hash Initialization*/
+    char const* const fileName = "data2.txt";
+    FILE* file = fopen(fileName, "r");
+    char line[256];	//Read Line by Line
+    
+    example_proc_t *proc, *tmp,*s=NULL;
+/*End Hash Initialization*/
 
 /*---------------------Linux Pipe---------------------------*/
     int fdone;             //Linux Pipe 1
@@ -145,95 +135,117 @@ int main (int argc, char **argv)
 
     next_list_entry = list_head;
 
+/*Read in "Bad Process" Database*/
+    while (fgets(line, sizeof(line), file)) {
+        proc = (example_proc_t*)malloc(sizeof(example_proc_t));
+        if (proc == NULL) {
+            exit(-1);
+        }
+    line[strlen(line)-1] = '\0';	//Remove the line return symbol
+    proc->pname = line;		//Hash Key
+
+    HASH_ADD_STR(s, pname, proc);	//Add database to hash table
+
+    printf("Bad Process List Hashed Successfully!!");
+    }
+
     while (1){                 //Read pipe 1
 
-//    fdone = open(ffone, O_RDONLY);      //Open Pipe 1 for Read
+    //    fdone = open(ffone, O_RDONLY);      //Open Pipe 1 for Read
 
-//    fdtwo = open(fftwo, O_WRONLY);      //open Pipe 2 for Write
+    //    fdtwo = open(fftwo, O_WRONLY);      //open Pipe 2 for Write
 
-//        if (read(fdone, buf, MAX_BUF) != 7){
-//            continue;
-//        }
+    //        if (read(fdone, buf, MAX_BUF) != 7){
+    //            continue;
+    //        }
 
-//        else{
-//            printf("Received: %s\n", buf);
-//            break;
-//        }
-    printf("New Iteration Starts!!\n");
-    read(fdone, buf, MAX_BUF);
-    printf("Received: %s\n", buf);
-/* this is the VM or file that we are looking at */
-    if (argc != 2) {
-        printf("Usage: %s <vmname>\n", argv[0]);
-        return 1;
-    } // if
+    //        else{
+    //            printf("Received: %s\n", buf);
+    //            break;
+    //        }
+        printf("New Iteration Starts!!\n");
+        read(fdone, buf, MAX_BUF);
+        printf("Received: %s\n", buf);
+    /* this is the VM or file that we are looking at */
+        if (argc != 2) {
+            printf("Usage: %s <vmname>\n", argv[0]);
+            return 1;
+        } // if
 
-    /* walk the task list */
-    do {
+        /* walk the task list */
+        do {
 
-	safe = 0;           //By default, assume VM is not safe
+    	safe = 0;           //By default, assume VM is not safe
 
-        current_process = next_list_entry - tasks_offset;
+            current_process = next_list_entry - tasks_offset;
 
-        /* Note: the task_struct that we are looking at has a lot of
-         * information.  However, the process name and id are burried
-         * nice and deep.  Instead of doing something sane like mapping
-         * this data to a task_struct, I'm just jumping to the location
-         * with the info that I want.  This helps to make the example
-         * code cleaner, if not more fragile.  In a real app, you'd
-         * want to do this a little more robust :-)  See
-         * include/linux/sched.h for mode details */
+            /* Note: the task_struct that we are looking at has a lot of
+             * information.  However, the process name and id are burried
+             * nice and deep.  Instead of doing something sane like mapping
+             * this data to a task_struct, I'm just jumping to the location
+             * with the info that I want.  This helps to make the example
+             * code cleaner, if not more fragile.  In a real app, you'd
+             * want to do this a little more robust :-)  See
+             * include/linux/sched.h for mode details */
 
-        /* NOTE: _EPROCESS.UniqueProcessId is a really VOID*, but is never > 32 bits,
-         * so this is safe enough for x64 Windows for example purposes */
-        vmi_read_32_va(vmi, current_process + pid_offset, 0, (uint32_t*)&pid);
+            /* NOTE: _EPROCESS.UniqueProcessId is a really VOID*, but is never > 32 bits,
+             * so this is safe enough for x64 Windows for example purposes */
+            vmi_read_32_va(vmi, current_process + pid_offset, 0, (uint32_t*)&pid);
 
-        procname = vmi_read_str_va(vmi, current_process + name_offset, 0);
+            procname = vmi_read_str_va(vmi, current_process + name_offset, 0);
 
-        if (!procname) {
-            printf("Failed to find procname\n");
-            goto error_exit;
+            if (!procname) {
+                printf("Failed to find procname\n");
+                goto error_exit;
+            }
+
+    	HASH_FIND_STR(s, procname, tmp);
+
+    	if (tmp == NULL){	//Bad Process not Found	    
+
+                /* print out the process name */
+                printf("[%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
+                if (procname) {
+                    free(procname);
+                    procname = NULL;
+                }
+
+                /* follow the next pointer */
+
+                status = vmi_read_addr_va(vmi, next_list_entry, 0, &next_list_entry);
+                if (status == VMI_FAILURE) {
+                    printf("Failed to read next pointer in loop at %"PRIx64"\n", next_list_entry);
+                    goto error_exit;
+                }
+    	    
+    	    safe = 1;	//Return Safe Signal
+    	}
+
+    	else{
+    	    safe = 0;
+    	    printf("\nMalicious Process has been detected! Process information is listed as below:");
+    	    printf("[%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
+    	    break;
+    	}
+
+        } while(next_list_entry != list_head);
+
+    /*---------------------Linux Pipe---------------------------*/
+    //    vmi_resume_vm(vmi);
+
+        if (safe == 1) {
+            write(fdtwo, "VMI Finish", 10);
+            fsync(fdtwo);
         }
 
-	if (procname == "ping"){
-	    break;
-	}
-
-        /* print out the process name */
-        printf("[%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
-        if (procname) {
-            free(procname);
-            procname = NULL;
+        else {
+    	write(fdtwo, "VM not Safe", 11);
+            fsync(fdtwo);
         }
-
-        /* follow the next pointer */
-
-        status = vmi_read_addr_va(vmi, next_list_entry, 0, &next_list_entry);
-        if (status == VMI_FAILURE) {
-            printf("Failed to read next pointer in loop at %"PRIx64"\n", next_list_entry);
-            goto error_exit;
-        }
-
-	safe = 1;		//After all scan, return VM safe
-
-    } while(next_list_entry != list_head);
-
-/*---------------------Linux Pipe---------------------------*/
-    //vmi_resume_vm(vmi);
-
-    if (safe == 1) {
-        write(fdtwo, "VMI Finish", 10);
-        fsync(fdtwo);
-    }
-
-    else {
-	write(fdtwo, "VM not Safe", 11);
-        fsync(fdtwo);
-    }
-//    close(fdone);
-//    close(fdtwo);
-    //unlink(ffone);
-/*-----------------------End Linux Pipe--------------------------------*/
+    //    close(fdone);
+    //    close(fdtwo);
+        //unlink(ffone);
+    /*-----------------------End Linux Pipe--------------------------------*/
     }
 
 error_exit:
