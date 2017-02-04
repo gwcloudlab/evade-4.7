@@ -363,15 +363,15 @@ static int write_batch(struct xc_sr_context *ctx)
             }
         }
     }
-    clock_gettime(CLOCK_MONOTONIC, &istart);
+    //clock_gettime(CLOCK_MONOTONIC, &istart);
 
     if (!READ_MFNS)
 	rc_writev = writev_exact(ctx->fd, iov, iovcnt);
 
-    clock_gettime(CLOCK_MONOTONIC, &iend);
-    DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
-            (1.0*(iend.tv_sec - istart.tv_sec)) +
-            (1.0e-9*(iend.tv_nsec - istart.tv_nsec)));
+    //clock_gettime(CLOCK_MONOTONIC, &iend);
+    //DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
+     //       (1.0*(iend.tv_sec - istart.tv_sec)) +
+      //      (1.0e-9*(iend.tv_nsec - istart.tv_nsec)));
 
     if( rc_writev )
     {
@@ -845,15 +845,18 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DPRINTF("SUNNY: Dirty page count is %u", stats.dirty_count);
 
     clock_gettime(CLOCK_MONOTONIC, &dstart);
+    DPRINTF("SUNNY: Sending dirtied_pages started at %.9f seconds\n", (1.0*(dstart.tv_sec) + (1.0e-9*(dstart.tv_nsec))));
     rc = send_dirty_pages(ctx, stats.dirty_count + ctx->save.nr_deferred_pages);
     if ( rc )
         goto out;
 
     clock_gettime(CLOCK_MONOTONIC, &dend);
+    DPRINTF("SUNNY: Sending dirtied_pages finished at %.9f seconds\n", (1.0*(dend.tv_sec) + (1.0e-9*(dend.tv_nsec))));
+/*
     DPRINTF("SUNNY: dirtied_pages send time took %.9f seconds\n",
             (1.0*(dend.tv_sec - dstart.tv_sec)) +
             (1.0e-9*(dend.tv_nsec - dstart.tv_nsec)));
-
+*/
     bitmap_clear(ctx->save.deferred_pages, ctx->save.p2m_size);
     ctx->save.nr_deferred_pages = 0;
 
@@ -1051,8 +1054,10 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         DPRINTF("SUNNY: starting migration, suspending domain");
         //clock_gettime(CLOCK_MONOTONIC, &tstart);
 
-        if ( ctx->save.live )
+        if ( ctx->save.live ){
             rc = send_domain_memory_live(ctx);
+            DPRINTF("SUNNY: Finished sending live memory");
+        }
         else if ( ctx->save.checkpointed != XC_MIG_STREAM_NONE )
             rc = send_domain_memory_checkpointed(ctx);
         else
