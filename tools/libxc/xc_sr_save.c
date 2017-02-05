@@ -30,6 +30,7 @@ struct timespec istart={0,0}, iend={0,0};
 
 struct timespec lvmi_start = {0, 0}, lvmi_end = {0, 0};
 #define MAX_BUF 1024
+//#define TOGGLER 1
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
@@ -43,9 +44,8 @@ int xen_write_fd = 0;             //Linux Pipe 1
 int xen_read_fd = 0;            //Linux Pipe 2
 
 struct vmi_requirements vmi_req;
- 
-/*
- * Writes an Image header and Domain header into the stream.
+
+/* Writes an Image header and Domain header into the stream.
  */
 static int write_headers(struct xc_sr_context *ctx, uint16_t guest_type)
 {
@@ -729,10 +729,11 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
-    char* start_addr = "7fbd553b80c0";//"ffff88001d669177";  //subject to change frequently
+#ifndef TOGGLER
+    char* start_addr = "ffff88001d669177";  //subject to change frequently
     char* end_addr = "ffff88001d66917b";    //subject to change frequently
-
-    int rc; 
+#endif
+    int rc;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
@@ -747,7 +748,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
             (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
  */   if ( rc )
         goto out;
-
+#ifndef TOGGLER
     DPRINTF("Starting Address: %s\n", start_addr);
 
     vmi_req.st_addr = malloc(sizeof(vmi_req.st_addr));
@@ -758,7 +759,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = (uint64_t) strtoul(start_addr, NULL, 16);
+    *(vmi_req.st_addr) = 6299704;//(uint64_t) strtoul(start_addr, NULL, 16);
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 
     DPRINTF("End Address: %s\n", end_addr);
@@ -809,6 +810,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     nr_end_checkpoint++;
 */
     counter = 2;
+#endif
+
     if ( xc_shadow_control(
              xch, ctx->domid, XEN_DOMCTL_SHADOW_OP_CLEAN,
              HYPERCALL_BUFFER(dirty_bitmap), ctx->save.p2m_size,
@@ -1145,7 +1148,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         {
             if( get_mfns_from_backup(ctx) )
                 DPRINTF("SR: Didn't read mfns");
-            READ_MFNS = 0;
+            READ_MFNS = 1;
         }
 
    } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
