@@ -1054,7 +1054,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         DPRINTF("SUNNY: starting migration, suspending domain");
         //clock_gettime(CLOCK_MONOTONIC, &tstart);
 
-        if ( ctx->save.live )
+        if ( ctx->save.live ) {
             rc = send_domain_memory_live(ctx);
             DPRINTF("SUNNY: Finished sending live memory");
         }
