@@ -1,9 +1,26 @@
 #include <assert.h>
+#include <libxl.h>
+#include "xc_sr_common.h"
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <assert.h>
 #include <arpa/inet.h>
 
-#include "xc_sr_common.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/mman.h>
 
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <time.h>
+
+#include <libvmi/libvmi.h>
+#include "xc_pipe.h"
 
 struct timespec tstart={0,0}, tend={0,0};
 struct timespec sstart={0,0}, ssend={0,0};
@@ -11,12 +28,24 @@ struct timespec dstart={0,0}, dend={0,0};
 struct timespec pstart={0,0}, pend={0,0};
 struct timespec istart={0,0}, iend={0,0};
 
+struct timespec lvmi_start = {0, 0}, lvmi_end = {0, 0};
+#define MAX_BUF 1024
+//#define TOGGLER 1
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
+unsigned nr_end_checkpoint = 0;
 
-/*
- * Writes an Image header and Domain header into the stream.
+int counter = 1;
+char * xen_write_ff = "/home/harpreet10oct/test_dir_sample_code/xen_to_vmi";        //Linux Pipe
+char * xen_read_ff = "/home/harpreet10oct/test_dir_sample_code/vmi_to_xen";
+int buf;
+int xen_write_fd = 0;             //Linux Pipe 1
+int xen_read_fd = 0;            //Linux Pipe 2
+
+struct vmi_requirements vmi_req;
+
+/* Writes an Image header and Domain header into the stream.
  */
 static int write_headers(struct xc_sr_context *ctx, uint16_t guest_type)
 {
@@ -61,6 +90,7 @@ static int write_headers(struct xc_sr_context *ctx, uint16_t guest_type)
 /*
  * Writes an END record into the stream.
  */
+
 static int write_end_record(struct xc_sr_context *ctx)
 {
     struct xc_sr_record end = { REC_TYPE_END, 0, NULL };
@@ -176,7 +206,6 @@ static int write_batch(struct xc_sr_context *ctx)
         dirtied_bckp_mfns[nr_pages] = dirtied_bckp_mfns[i];
         mfns[nr_pages] = mfns[i];
         ++nr_pages;
-        //mfns[nr_pages++] = mfns[i];
     }
 
     if ( nr_pages > 0 )
@@ -229,6 +258,10 @@ static int write_batch(struct xc_sr_context *ctx)
             {
                 local_pages[i] = page;
             }
+	    /* Copy data via memcpy
+	       memcopied == 1
+	       READ_MFNS = 0
+	    */
             else if ( READ_MFNS && i > 10 ) /* `page` hasn't been modified */
             {
                 bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
@@ -255,6 +288,10 @@ static int write_batch(struct xc_sr_context *ctx)
             {
                 guest_data[i] = page;
             }
+	    /* Send data via writev function call
+	       memcopied == 0
+	       READ_MFNS = 1
+	    */
             else if ( READ_MFNS && !memcopied )
             {
                     guest_data[j] = page;
@@ -273,15 +310,6 @@ static int write_batch(struct xc_sr_context *ctx)
 
     if ( READ_MFNS && !remus_failover )
         nr_pfns = j;
-
-    //if (nr_pfns == 0)
-    //{
-    //    guest_data[j] = page;
-    //    pfns_to_send[j] = ctx->save.batch_pfns[i];
-    //    assert(pfns_to_send[j] <= ctx->x86_pv.max_pfn);
-    //    ++j;
-    //    ++nr_pages;
-    //}
 
     rec_pfns = malloc(nr_pfns * sizeof(*rec_pfns));
     if ( !rec_pfns )
@@ -337,14 +365,14 @@ static int write_batch(struct xc_sr_context *ctx)
     }
     //clock_gettime(CLOCK_MONOTONIC, &istart);
 
-    rc_writev = writev_exact(ctx->fd, iov, iovcnt);
+    if (!READ_MFNS)
+	rc_writev = writev_exact(ctx->fd, iov, iovcnt);
 
     //clock_gettime(CLOCK_MONOTONIC, &iend);
     //DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
     //        (1.0*(iend.tv_sec - istart.tv_sec)) +
     //        (1.0e-9*(iend.tv_nsec - istart.tv_nsec)));
 
-    //if ( writev_exact(ctx->fd, iov, iovcnt) )
     if( rc_writev )
     {
         PERROR("Failed to write page data to stream");
@@ -681,11 +709,10 @@ static int get_mfns_from_backup(struct xc_sr_context *ctx)
     FILE *file = fopen("/tmp/test.txt", "r");
     unsigned long num, i = 0;
     int rc = 0;
-
-    fscanf(file, "%d", &bckp_domid);
+    int a;
+    a = fscanf(file, "%d", &bckp_domid);
     while(fscanf(file, "%lu", &num) > 0) {
         bckp_mfns[i] = num;
-        //fprintf(stderr, "bckp_mfns[%lu] = %lu\n", i, bckp_mfns[i]);
         i++;
     }
     fclose(file);
@@ -702,23 +729,88 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
+#ifndef TOGGLER
+    char* start_addr = "ffff88001d669177";  //subject to change frequently
+    char* end_addr = "ffff88001d66917b";    //subject to change frequently
+#endif
     int rc;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
     clock_gettime(CLOCK_MONOTONIC, &sstart);
-    DPRINTF("SUNNY: Domain was suspending at %.9f seconds\n",
-            (1.0*(sstart.tv_sec) + (1.0e-9*(sstart.tv_nsec))));
+    DPRINTF("SUNNY: Domain was suspending at %.9f seconds\n", (1.0*(sstart.tv_sec) + (1.0e-9*(sstart.tv_nsec))));
 
     rc = suspend_domain(ctx);
-/*
-    clock_gettime(CLOCK_MONOTONIC, &ssend);
+
+/*    clock_gettime(CLOCK_MONOTONIC, &ssend);
     DPRINTF("SUNNY: suspend_domain fn call took %.9f seconds\n",
             (1.0*(ssend.tv_sec - sstart.tv_sec)) +
             (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
-*/
-    if ( rc )
+ */   if ( rc )
         goto out;
+#ifndef TOGGLER
+    DPRINTF("Starting Address: %s\n", start_addr);
+
+    vmi_req.st_addr = malloc(sizeof(vmi_req.st_addr));
+    vmi_req.en_addr = malloc(sizeof(vmi_req.en_addr));
+
+/*------------------------------------------------------------------------------------*/
+    /*
+     *  Convert hexa address into uint64
+     */
+    DPRINTF("Start Address: %s\n", start_addr);
+    *(vmi_req.st_addr) = 6299704;//(uint64_t) strtoul(start_addr, NULL, 16);
+    DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
+
+    DPRINTF("End Address: %s\n", end_addr);
+    *(vmi_req.en_addr) = (uint64_t) strtoul(end_addr, NULL, strlen(end_addr));
+    DPRINTF("End Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.en_addr));
+/*-------------------------------------------------------------------------------------*/
+    if (counter == 1)
+    {
+        mkfifo(xen_read_ff, 0666);        //Create Pipe 2
+        xen_write_fd = open(xen_write_ff, O_WRONLY);      //Open Pipe 1 for Write
+        xen_read_fd = open(xen_read_ff, O_RDONLY);      //open Pipe 2 for Read
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &lvmi_start);
+    DPRINTF("SUNNY: Writing to LibVMI at %.9f seconds\n", (1.0*(lvmi_start.tv_sec) + (1.0e-9*(lvmi_start.tv_nsec))));
+    rc = write(xen_write_fd, vmi_req.st_addr, sizeof(void *));//Write start address to Pipe 1
+    fsync(xen_write_fd);
+    fprintf(stderr, "Written 1st address %" PRIu64 " Successfully!!\n", *(vmi_req.st_addr));
+
+    fprintf(stderr, "Reading from LibVMI\n");
+    rc = read(xen_read_fd, &buf, sizeof(int)); //Read Accept or Reject as 1 or 0
+    fprintf(stderr,"REMUS: Received: %d\n", buf);
+
+    clock_gettime(CLOCK_MONOTONIC, &lvmi_end);
+    DPRINTF("SUNNY: Reading from LibVMI at %.9f seconds\n", (1.0*(lvmi_end.tv_sec) + (1.0e-9*(lvmi_end.tv_nsec))));
+
+/*--------------------------------------------------------------------------*/
+/*
+ *  Have to let the first checkpoint pass, as it doesn't send the vcpu information
+ */
+
+    if (buf && counter == 2)
+    {
+        fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
+        close(xen_write_fd);
+        close(xen_read_fd);
+    	unlink(xen_read_ff);
+    	free (vmi_req.st_addr);
+    	free (vmi_req.en_addr);
+        fprintf(stderr, "REMUS: Suspending domain");
+        
+    	return 100;
+    }
+/*	
+    if (nr_end_checkpoint == 100)
+        return 100;
+
+    nr_end_checkpoint++;
+*/
+    counter = 2;
+#endif
 
     if ( xc_shadow_control(
              xch, ctx->domid, XEN_DOMCTL_SHADOW_OP_CLEAN,
@@ -932,7 +1024,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
 {
     xc_interface *xch = ctx->xch;
     int rc, saved_rc = 0, saved_errno = 0;
-    unsigned nr_end_checkpoint = 0;
 
     IPRINTF("Saving domain %d, type %s",
             ctx->domid, dhdr_type_to_str(guest_type));
@@ -960,7 +1051,10 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         if ( rc )
             goto err;
 
-        if ( ctx->save.live ){
+        DPRINTF("SUNNY: starting migration, suspending domain");
+        //clock_gettime(CLOCK_MONOTONIC, &tstart);
+
+        if ( ctx->save.live )
             rc = send_domain_memory_live(ctx);
             DPRINTF("SUNNY: Finished sending live memory");
         }
@@ -971,9 +1065,11 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         else
             rc = send_domain_memory_nonlive(ctx);
 
-        if ( rc )
-            goto err;
-
+        if (rc == 100)
+        {
+            rc = system ("sudo xl pause opensuse64");    //pause the primary
+	    return 100;
+	}
         if ( !ctx->dominfo.shutdown ||
              (ctx->dominfo.shutdown_reason != SHUTDOWN_suspend) )
         {
@@ -981,8 +1077,8 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             rc = -1;
             goto err;
         }
-        rc = ctx->save.ops.end_of_checkpoint(ctx);
-        nr_end_checkpoint++;
+
+       rc = ctx->save.ops.end_of_checkpoint(ctx);
         DPRINTF("SR: Number of end checkpoints sent: %u", nr_end_checkpoint);
 
         if ( rc )
@@ -1019,12 +1115,12 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             clock_gettime(CLOCK_MONOTONIC, &tend);
             DPRINTF("SUNNY: Domain was resumed at %.9f seconds\n",
             (1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
-
-            //clock_gettime(CLOCK_MONOTONIC, &pend);
-            //DPRINTF("SUNNY: postcopy fn call took %.9f seconds\n",
-            //(1.0*(pend.tv_sec - pstart.tv_sec)) +
-            //(1.0e-9*(pend.tv_nsec - pstart.tv_nsec)));
-
+/*
+            clock_gettime(CLOCK_MONOTONIC, &pend);
+            DPRINTF("SUNNY: postcopy fn call took %.9f seconds\n",
+            (1.0*(pend.tv_sec - pstart.tv_sec)) +
+            (1.0e-9*(pend.tv_nsec - pstart.tv_nsec)));
+*/
 
             if ( rc <= 0 )
                 goto err;
@@ -1049,7 +1145,11 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 goto err;
             }
         }
-        //if ( READ_MFNS == 123 )
+	/*
+	 *  For not sending pages through writev, 
+	 *  we copy the backup's pages into a file
+	 *  and read those memory pages into the primary
+	 */
         if ( !READ_MFNS )
         {
             if( get_mfns_from_backup(ctx) )
@@ -1057,22 +1157,15 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             READ_MFNS = 1;
         }
 
-        //if (nr_end_checkpoint == 100){
-        //    //rc = ctx->save.ops.end_of_checkpoint(ctx);
-        //    rc = write_checkpoint_record(ctx);
-        //    //rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
-        //    break;
-        //}
-    } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
+   } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
 
-    xc_report_progress_single(xch, "End of stream");
-
-    rc = write_end_record(ctx);
-    if ( rc )
+   xc_report_progress_single(xch, "End of stream");
+   rc = write_end_record(ctx);
+   if ( rc )
         goto err;
-
+    rc = 100;
     xc_report_progress_single(xch, "Complete");
-    goto done;
+   goto done;
 
  err:
     saved_errno = errno;
@@ -1089,6 +1182,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
     }
 
     return rc;
+
 };
 
 int xc_domain_save(xc_interface *xch, int io_fd, uint32_t dom,

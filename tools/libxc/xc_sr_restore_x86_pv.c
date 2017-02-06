@@ -1049,25 +1049,34 @@ static int x86_pv_setup(struct xc_sr_context *ctx)
 static int x86_pv_process_record(struct xc_sr_context *ctx,
                                  struct xc_sr_record *rec)
 {
+    int ret;
     switch ( rec->type )
     {
     case REC_TYPE_X86_PV_INFO:
-        return handle_x86_pv_info(ctx, rec);
-
+	ret =handle_x86_pv_info(ctx, rec);
+ 	fprintf(stderr, "REMUS: Value of ret with handle_x86_pv_info is: %d\n", ret);
+        return ret; 
     case REC_TYPE_X86_PV_P2M_FRAMES:
-        return handle_x86_pv_p2m_frames(ctx, rec);
-
+	ret = handle_x86_pv_p2m_frames(ctx, rec);
+ 	fprintf(stderr, "REMUS: Value of ret with handle_x86_pv_p2m_frames is: %d\n", ret);
+        return ret; 
     case REC_TYPE_X86_PV_VCPU_BASIC:
     case REC_TYPE_X86_PV_VCPU_EXTENDED:
     case REC_TYPE_X86_PV_VCPU_XSAVE:
     case REC_TYPE_X86_PV_VCPU_MSRS:
-        return handle_x86_pv_vcpu_blob(ctx, rec);
+        ret = handle_x86_pv_vcpu_blob(ctx, rec);
+ 	fprintf(stderr, "REMUS: Value of ret with handle_x86_pv_vcpu_blob is: %d\n", ret);
+        return ret; 
 
     case REC_TYPE_SHARED_INFO:
-        return handle_shared_info(ctx, rec);
+        ret = handle_shared_info(ctx, rec);
+ 	fprintf(stderr, "REMUS: Value of ret with handle_shared_info is: %d\n", ret);
+        return ret; 
 
     case REC_TYPE_TSC_INFO:
-        return handle_tsc_info(ctx, rec);
+        ret = handle_tsc_info(ctx, rec);
+ 	fprintf(stderr, "REMUS: Value of ret with handle_tsc_info is: %d\n", ret);
+        return ret; 
 
     default:
         return RECORD_NOT_PROCESSED;

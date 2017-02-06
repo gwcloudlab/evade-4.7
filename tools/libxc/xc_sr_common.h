@@ -2,6 +2,7 @@
 #define __COMMON__H
 
 #include <stdbool.h>
+#include <libvmi/libvmi.h>
 
 #include "xg_private.h"
 #include "xg_save_restore.h"
@@ -352,6 +353,11 @@ struct xc_sr_record
     uint32_t length;
     void *data;
 };
+
+/*
+ * Create the pipes for Xen and LibVMI
+ */
+//int create_pipe( void );
 
 /*
  * Writes a split record to the stream, applying correct padding where
