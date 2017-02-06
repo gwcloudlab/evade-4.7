@@ -1149,7 +1149,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         {
             if( get_mfns_from_backup(ctx) )
                 DPRINTF("SR: Didn't read mfns");
-            READ_MFNS = 0;
+            READ_MFNS = 1;
         }
 
    } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
