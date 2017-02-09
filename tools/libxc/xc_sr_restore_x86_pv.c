@@ -1114,7 +1114,6 @@ static int x86_pv_stream_complete(struct xc_sr_context *ctx)
         PERROR("Failed to seed grant table");
         return rc;
     }
-
     return rc;
 }
 

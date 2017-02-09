@@ -730,7 +730,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
 #ifndef TOGGLER
-    char* start_addr = "ffff88001d669177";  //subject to change frequently
+    char* start_addr = "7f4d4905a080";//"ffff88001d669177";  //subject to change frequently
     char* end_addr = "ffff88001d66917b";    //subject to change frequently
 #endif
     int rc;
@@ -759,7 +759,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = 6299704;//(uint64_t) strtoul(start_addr, NULL, 16);
+    *(vmi_req.st_addr) = (uint64_t) strtoul(start_addr, NULL, 16);
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 
     DPRINTF("End Address: %s\n", end_addr);
@@ -791,7 +791,20 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
  *  Have to let the first checkpoint pass, as it doesn't send the vcpu information
  */
 
-    if (buf && counter == 2)
+    if (!buf && counter == 2)
+    {
+        fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
+        close(xen_write_fd);
+        close(xen_read_fd);
+    	unlink(xen_read_ff);
+    	free (vmi_req.st_addr);
+    	free (vmi_req.en_addr);
+        fprintf(stderr, "REMUS: Suspending domain");
+        
+    	return 100;
+    }
+    rc = read(xen_read_fd, &buf, sizeof(int)); //Read Accept or Reject as 1 or 0
+    if (!buf && counter == 2)
     {
         fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
         close(xen_write_fd);
@@ -1174,7 +1187,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         rc = saved_rc;
         errno = saved_errno;
     }
-
+    
     return rc;
 
 };

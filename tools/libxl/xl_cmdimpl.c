@@ -42,6 +42,11 @@
 #include "libxlutil.h"
 #include "xl.h"
 
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
+
+int pass = 0;
 /* For calls which return an errno on failure */
 #define CHK_ERRNOVAL( call ) ({                                         \
         int chk_errnoval = (call);                                      \
@@ -4754,6 +4759,16 @@ static void migrate_receive(int debug, int daemonize, int monitor,
     struct domain_create dom_info;
     const char *ha = checkpointed == LIBXL_CHECKPOINTED_STREAM_COLO ?
                      "COLO" : "Remus";
+    
+    int ret;
+    int read_event_setup_fd;
+    char *read_event_setup_ff = "/home/harpreet10oct/test_dir_sample_code/event_to_restore";
+
+    fprintf(stderr, "PIPE: Creating the pipe\n");
+    mkfifo(read_event_setup_ff, 0666);
+    fprintf(stderr, "PIPE: Pipe created\n");
+
+    int *tf = malloc(sizeof(int));
 
     signal(SIGPIPE, SIG_IGN);
     /* if we get SIGPIPE we'd rather just have it as an error */
@@ -4807,6 +4822,25 @@ static void migrate_receive(int debug, int daemonize, int monitor,
         if (migration_domname) {
             rc = libxl_domain_rename(ctx, domid, migration_domname,
                                      common_domname);
+
+        if(pass)
+	{
+    	    read_event_setup_fd = open(read_event_setup_ff, O_RDONLY);
+            fprintf(stderr, "PIPE: Opening file descriptor\n");
+    	    fprintf(stderr, "PIPE: Reading if event monitoring is set-up\n");
+            ret = read(read_event_setup_fd, tf, sizeof(int));
+    	    fprintf(stderr, "PIPE: Event monitoring is set-up\n");
+
+//	    fprintf(stderr, "Sleeping for 10 seconds\n");
+//	    sleep(10);
+
+	    close(read_event_setup_fd);
+	    unlink(read_event_setup_ff);
+	}
+        pass = 1;
+
+	    fprintf(stderr, "Sleeping for 10 seconds\n");
+	    sleep(10);
             if (rc)
                 fprintf(stderr, "migration target (%s): "
                         "Failed to rename domain from %s to %s:%d\n",
@@ -4816,7 +4850,7 @@ static void migrate_receive(int debug, int daemonize, int monitor,
         if (checkpointed == LIBXL_CHECKPOINTED_STREAM_COLO)
             /* The guest is running after failover in COLO mode */
             exit(rc ? -ERROR_FAIL: 0);
-
+	
         rc = libxl_domain_unpause(ctx, domid);
         if (rc)
             fprintf(stderr, "migration target (%s): "
