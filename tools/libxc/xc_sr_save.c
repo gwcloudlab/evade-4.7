@@ -30,7 +30,7 @@ struct timespec istart={0,0}, iend={0,0};
 
 struct timespec lvmi_start = {0, 0}, lvmi_end = {0, 0};
 #define MAX_BUF 1024
-//#define TOGGLER 1
+#define DISABLE_LIBVMI 1
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
@@ -258,11 +258,12 @@ static int write_batch(struct xc_sr_context *ctx)
             {
                 local_pages[i] = page;
             }
-	    /* Copy data via memcpy
-	       memcopied == 1
-	       READ_MFNS = 0
-	    */
-            else if ( READ_MFNS && i > 10 ) /* `page` hasn't been modified */
+        /* Copy data via memcpy
+           memcopied == 1
+           READ_MFNS = 0
+        */
+            else if ( READ_MFNS && i > 10 && i < (nr_pfns - 10) ) /* `page` hasn't been modified */
+            //else if ( READ_MFNS && i > 10 ) /* `page` hasn't been modified */
             {
                 bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
                 memcpy(bckp_page, page, PAGE_SIZE);
@@ -288,10 +289,10 @@ static int write_batch(struct xc_sr_context *ctx)
             {
                 guest_data[i] = page;
             }
-	    /* Send data via writev function call
-	       memcopied == 0
-	       READ_MFNS = 1
-	    */
+        /* Send data via writev function call
+           memcopied == 0
+           READ_MFNS = 1
+        */
             else if ( READ_MFNS && !memcopied )
             {
                     guest_data[j] = page;
@@ -334,7 +335,7 @@ static int write_batch(struct xc_sr_context *ctx)
     }
 
     if ( READ_MFNS)
-            DPRINTF("SR: pfns_to_send[%d] = %lu", i, pfns_to_send[i]);
+            DPRINTF("SR: pfns_to_send[%d] = %lu", i-1, pfns_to_send[i-1]);
 
     iov[0].iov_base = &rec.type;
     iov[0].iov_len = sizeof(rec.type);
@@ -366,7 +367,7 @@ static int write_batch(struct xc_sr_context *ctx)
     //clock_gettime(CLOCK_MONOTONIC, &istart);
 
     if (!READ_MFNS)
-	rc_writev = writev_exact(ctx->fd, iov, iovcnt);
+        rc_writev = writev_exact(ctx->fd, iov, iovcnt);
 
     //clock_gettime(CLOCK_MONOTONIC, &iend);
     //DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
@@ -729,7 +730,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
-#ifndef TOGGLER
+#ifndef DISABLE_LIBVMI
     char* start_addr = "ffff88001d669177";  //subject to change frequently
     char* end_addr = "ffff88001d66917b";    //subject to change frequently
 #endif
@@ -748,7 +749,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
             (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
  */   if ( rc )
         goto out;
-#ifndef TOGGLER
+#ifndef DISABLE_LIBVMI
     DPRINTF("Starting Address: %s\n", start_addr);
 
     vmi_req.st_addr = malloc(sizeof(vmi_req.st_addr));
@@ -796,14 +797,14 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
         close(xen_write_fd);
         close(xen_read_fd);
-    	unlink(xen_read_ff);
-    	free (vmi_req.st_addr);
-    	free (vmi_req.en_addr);
+        unlink(xen_read_ff);
+        free (vmi_req.st_addr);
+        free (vmi_req.en_addr);
         fprintf(stderr, "REMUS: Suspending domain");
-        
-    	return 100;
+
+        return 100;
     }
-/*	
+/*
     if (nr_end_checkpoint == 100)
         return 100;
 
@@ -1068,8 +1069,8 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         if (rc == 100)
         {
             rc = system ("sudo xl pause opensuse64");    //pause the primary
-	    return 100;
-	}
+        return 100;
+    }
         if ( !ctx->dominfo.shutdown ||
              (ctx->dominfo.shutdown_reason != SHUTDOWN_suspend) )
         {
@@ -1145,12 +1146,13 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 goto err;
             }
         }
-	/*
-	 *  For not sending pages through writev, 
-	 *  we copy the backup's pages into a file
-	 *  and read those memory pages into the primary
-	 */
+    /*
+     *  For not sending pages through writev,
+     *  we copy the backup's pages into a file
+     *  and read those memory pages into the primary
+     */
         if ( !READ_MFNS )
+        //if ( READ_MFNS == 123 )
         {
             if( get_mfns_from_backup(ctx) )
                 DPRINTF("SR: Didn't read mfns");
