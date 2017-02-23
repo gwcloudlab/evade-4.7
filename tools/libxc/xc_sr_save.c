@@ -25,12 +25,14 @@
 struct timespec tstart={0,0}, tend={0,0};
 struct timespec sstart={0,0}, ssend={0,0};
 struct timespec dstart={0,0}, dend={0,0};
-struct timespec pstart={0,0}, pend={0,0};
-struct timespec istart={0,0}, iend={0,0};
+struct timespec add_start={0,0}, add_end={0,0}, flush_end={0,0};
+struct timespec wa_start={0,0}, wb_start={0,0};
+struct timespec wc_start={0,0}, wd_start={0,0};
+struct timespec we_start={0,0}, wf_start={0,0};
 
 struct timespec lvmi_start = {0, 0}, lvmi_end = {0, 0};
 #define MAX_BUF 1024
-#define DISABLE_LIBVMI 1
+//#define DISABLE_LIBVMI
 int READ_MFNS = 0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
@@ -192,6 +194,8 @@ static int write_batch(struct xc_sr_context *ctx)
     }
     rc = -1;
 
+    clock_gettime(CLOCK_MONOTONIC, &wa_start);
+    DPRINTF("SUNNY: write_batch_a started at %.9f seconds\n", (1.0*(wa_start.tv_sec) + (1.0e-9*(wa_start.tv_nsec))));
     for ( i = 0; i < nr_pfns; ++i )
     {
         switch ( types[i] )
@@ -207,6 +211,8 @@ static int write_batch(struct xc_sr_context *ctx)
         mfns[nr_pages] = mfns[i];
         ++nr_pages;
     }
+    clock_gettime(CLOCK_MONOTONIC, &wb_start);
+    DPRINTF("SUNNY: write_batch_b started at %.9f seconds\n", (1.0*(wb_start.tv_sec) + (1.0e-9*(wb_start.tv_nsec))));
 
     if ( nr_pages > 0 )
     {
@@ -232,6 +238,8 @@ static int write_batch(struct xc_sr_context *ctx)
         nr_pages_mapped = nr_pages;
 
         DPRINTF("SR: Before memcpy: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
+    clock_gettime(CLOCK_MONOTONIC, &wc_start);
+    DPRINTF("SUNNY: write_batch_c started at %.9f seconds\n", (1.0*(wc_start.tv_sec) + (1.0e-9*(wc_start.tv_nsec))));
 
         for ( i = 0, j = 0, p = 0; i < nr_pfns; ++i )
         {
@@ -262,8 +270,8 @@ static int write_batch(struct xc_sr_context *ctx)
            memcopied == 1
            READ_MFNS = 0
         */
-            else if ( READ_MFNS && i > 10 && i < (nr_pfns - 10) ) /* `page` hasn't been modified */
-            //else if ( READ_MFNS && i > 10 ) /* `page` hasn't been modified */
+            //else if ( READ_MFNS && i > 10 && i < (nr_pfns - 10) ) /* `page` hasn't been modified */
+            else if ( READ_MFNS && i > 10 ) /* `page` hasn't been modified */
             {
                 bckp_page = bckp_guest_mapping + (p * PAGE_SIZE);
                 memcpy(bckp_page, page, PAGE_SIZE);
@@ -307,6 +315,8 @@ static int write_batch(struct xc_sr_context *ctx)
         }
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &wd_start);
+    DPRINTF("SUNNY: write_batch_d started at %.9f seconds\n", (1.0*(wd_start.tv_sec) + (1.0e-9*(wd_start.tv_nsec))));
    DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
 
     if ( READ_MFNS && !remus_failover )
@@ -350,6 +360,8 @@ static int write_batch(struct xc_sr_context *ctx)
     iov[3].iov_len = nr_pfns * sizeof(*rec_pfns);
 
     iovcnt = 4;
+    clock_gettime(CLOCK_MONOTONIC, &we_start);
+    DPRINTF("SUNNY: write_batch_e started at %.9f seconds\n", (1.0*(we_start.tv_sec) + (1.0e-9*(we_start.tv_nsec))));
 
     if ( nr_pages )
     {
@@ -364,15 +376,9 @@ static int write_batch(struct xc_sr_context *ctx)
             }
         }
     }
-    //clock_gettime(CLOCK_MONOTONIC, &istart);
 
     if (!READ_MFNS)
         rc_writev = writev_exact(ctx->fd, iov, iovcnt);
-
-    //clock_gettime(CLOCK_MONOTONIC, &iend);
-    //DPRINTF("SUNNY: writev_exact fn took about %.9f seconds\n",
-    //        (1.0*(iend.tv_sec - istart.tv_sec)) +
-    //        (1.0e-9*(iend.tv_nsec - istart.tv_nsec)));
 
     if( rc_writev )
     {
@@ -384,6 +390,8 @@ static int write_batch(struct xc_sr_context *ctx)
     assert(nr_pages == 0);
     rc = ctx->save.nr_batch_pfns = 0;
 
+    clock_gettime(CLOCK_MONOTONIC, &wf_start);
+    DPRINTF("SUNNY: write_batch_f started at %.9f seconds\n", (1.0*(wf_start.tv_sec) + (1.0e-9*(wf_start.tv_nsec))));
  err:
     free(rec_pfns);
     if ( guest_mapping )
@@ -502,6 +510,8 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
     DPRINTF("SR: p2m size is %ld", ctx->save.p2m_size);
+    clock_gettime(CLOCK_MONOTONIC, &add_start);
+    DPRINTF("SUNNY: add_to_batch started at %.9f seconds\n", (1.0*(add_start.tv_sec) + (1.0e-9*(add_start.tv_nsec))));
 
     for ( p = 0, written = 0; p < ctx->save.p2m_size; ++p )
     {
@@ -518,8 +528,13 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
 
         ++written;
     }
+    clock_gettime(CLOCK_MONOTONIC, &add_end);
+    DPRINTF("SUNNY: add_to_batch ended at %.9f seconds\n", (1.0*(add_end.tv_sec) + (1.0e-9*(add_end.tv_nsec))));
 
     rc = flush_batch(ctx);
+
+    clock_gettime(CLOCK_MONOTONIC, &flush_end);
+    DPRINTF("SUNNY: flush_batch ended at %.9f seconds\n", (1.0*(flush_end.tv_sec) + (1.0e-9*(flush_end.tv_nsec))));
     if ( rc )
         return rc;
 
@@ -1110,18 +1125,11 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 }
             }
 
-            //clock_gettime(CLOCK_MONOTONIC, &pstart);
 
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
             clock_gettime(CLOCK_MONOTONIC, &tend);
             DPRINTF("SUNNY: Domain was resumed at %.9f seconds\n",
             (1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
-/*
-            clock_gettime(CLOCK_MONOTONIC, &pend);
-            DPRINTF("SUNNY: postcopy fn call took %.9f seconds\n",
-            (1.0*(pend.tv_sec - pstart.tv_sec)) +
-            (1.0e-9*(pend.tv_nsec - pstart.tv_nsec)));
-*/
 
             if ( rc <= 0 )
                 goto err;
