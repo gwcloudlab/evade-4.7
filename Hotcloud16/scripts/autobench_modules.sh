@@ -1,21 +1,22 @@
 #!/bin/zsh
 
 BENCH=autobench
-VMS=(suse-web)
+#VMS=(suse-web)
+VMS=(ubuntu)
 DT=$(date +"%y-%m-%d")
 HOME='/home/sundarcs'
 mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/$VMS
 #ssh sundarcs@10.0.0.42 "mkdir -p $BENCH"
 DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
-URI1='/php/overdue.php\?num_times\=100'
-#URI1='/'
+#URI1='/php/overdue.php\?num_times\=100'
+URI1='/'
 
-#INTS=(5 10 15 20 25 30 50 70 100)
-INTS=(30)
-LOW_RATE=300
-HIGH_RATE=300
+#INTS=(5 10 20 25 30 50 70 100)
+INTS=(200)
+LOW_RATE=50
+HIGH_RATE=50
 RATE_STEP=20
-NUM_CALL=10
+NUM_CALL=100
 TOT_CONN=1000
 #time taken = TOT_CONN / (RATE * NUM_CALL) seconds
 
@@ -158,7 +159,10 @@ get-remus-results()
 
 scp-all-results ()
 {
-    scp $DIR/$vm/{*.txt,*.out,*.pdf} sunny@161.253.74.130:~/Dropbox/autobench/nn42/
+    for vm in ${VMS[@]}; do
+        #scp $DIR/$vm/{*.txt,*.out,*.pdf} sunny@161.253.74.130:~/Dropbox/autobench/nn42/
+        scp $DIR/$vm/{*.txt,*.out,*.pdf} sunnyraj@161.253.75.48:~/Dropbox/autobench/nn42/
+    done
 }
 
 main ()
@@ -182,13 +186,13 @@ main ()
             #remus-local-nonet $VM $interval
 
         done
+        plot-graph $VM
     done
 
 get-remus-results
 
 #get-remus-nonet-results
 
-plot-graph $VM $interval
 
 scp-all-results
 
