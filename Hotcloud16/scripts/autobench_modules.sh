@@ -1,6 +1,7 @@
 #!/bin/zsh
 
 BENCH=autobench
+#VMS=(ubuntu)
 VMS=(suse-web)
 DT=$(date +"%y-%m-%d")
 HOME='/home/sundarcs'
@@ -10,12 +11,12 @@ DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$BENCH/
 #URI1='/php/overdue.php\?num_times\=100'
 URI1='/'
 
-#INTS=(5 10 20 25 30 50 70 100)
-INTS=(100)
-LOW_RATE=400
-HIGH_RATE=400
+INTS=(30 50 70 100)
+#INTS=(10)
+LOW_RATE=10
+HIGH_RATE=50
 RATE_STEP=20
-NUM_CALL=10
+NUM_CALL=100
 TOT_CONN=1000
 #time taken = TOT_CONN / (RATE * NUM_CALL) seconds
 
@@ -123,15 +124,16 @@ remus-local-nonet ()
 
 plot-graph ()
 {
-    local vm=$1
-    cd $DIR/$vm/
-    rm *.pdf
-    bench2graph $BENCH-0.out noremus.pdf 2 5 8
-    for i in ${INTS[@]}; do
-        bench2graph $BENCH-$i.out remus-remote-$i.pdf 2 5 8
-        bench2graph $BENCH-$i-nonet.out remus-remote-nonet-$i.pdf 2 5 8
-        bench2graph $BENCH-$i-local.out remus-local-$i.pdf 2 5 8
-        bench2graph $BENCH-$i-local-nonet.out remus-local-nonet-$i.pdf 2 5 8
+    for vm in ${VMS[@]}; do
+        cd $DIR/$vm/
+        rm *.pdf
+        #bench2graph $BENCH-0.out noremus.pdf 2 5 8
+        for i in ${INTS[@]}; do
+            #bench2graph $BENCH-$i.out remus-remote-$i.pdf 2 5 8
+            #bench2graph $BENCH-$i-nonet.out remus-remote-nonet-$i.pdf 2 5 8
+            bench2graph $BENCH-$i-local.out remus-local-$i.pdf 2 5 8
+            #bench2graph $BENCH-$i-local-nonet.out remus-local-nonet-$i.pdf 2 5 8
+        done
     done
 }
 
@@ -185,13 +187,13 @@ main ()
             #remus-local-nonet $VM $interval
 
         done
-        plot-graph $VM
     done
 
 get-remus-results
 
 #get-remus-nonet-results
 
+plot-graph
 
 scp-all-results
 
