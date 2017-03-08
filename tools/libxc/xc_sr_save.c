@@ -112,23 +112,13 @@ static int write_checkpoint_record(struct xc_sr_context *ctx)
     return write_record(ctx, &checkpoint);
 }
 
-/*
- * Writes a batch of memory as a PAGE_DATA record into the stream.  The batch
- * is constructed in ctx->save.batch_pfns.
- *
- * This function:
- * - gets the types for each pfn in the batch.
- * - for each pfn with real data:
- *   - maps and attempts to localise the pages.
- * - construct and writes a PAGE_DATA record into the stream.
- */
-//#if 0
 static int map_primary_and_backup(struct xc_sr_context *ctx)
 {
     xc_interface *xch = ctx->xch;
     xen_pfn_t *mfns = NULL;
     xen_pfn_t pfn;
-    int *errors = NULL;
+    int *errors = NULL, *bckp_errors = NULL;
+    unsigned i;
     int rc = 0;
 
     //void *guest_mapping = NULL;
@@ -141,8 +131,10 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
     mfns = malloc(nr_pfns * sizeof(*mfns));
     /* Types of the batch pfns. */
     //types = malloc(nr_pfns * sizeof(*types));
-    /* Errors from attempting to map the gfns. */
+    /* Errors from attempting to map the gfns for primary. */
     errors = malloc(nr_pfns * sizeof(*errors));
+    /* Errors from attempting to map the gfns for backup. */
+    bckp_errors = malloc(nr_pfns * sizeof(*bckp_errors));
 
 
     for ( pfn = 0; pfn < nr_pfns; ++pfn )
@@ -162,7 +154,8 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
     if ( !guest_mapping )
     {
         PERROR("SR: Failed to map guest pages");
-            //goto err;
+        rc = -1;
+        goto err;
     }
 
     bckp_guest_mapping = xenforeignmemory_map(xch->fmem,
@@ -170,13 +163,35 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
     if ( !bckp_guest_mapping )
     {
         PERROR("Failed to map backup VMs guest pages");
-        //goto err;
+        rc = -1;
+        goto err;
     }
 
+    for ( i = 0; i < nr_pfns; ++i )
+    {
+        if (errors[i])
+        {
+                ERROR("Mapping of pfn %#"PRIpfn" (mfn %#"PRIpfn") failed %d",
+                      ctx->save.batch_pfns[i], mfns[i], errors[i]);
+                rc = -1;
+                goto err;
+        }
+
+        if (bckp_errors[i])
+        {
+                ERROR("Mapping of pfn %#"PRIpfn" (mfn %#"PRIpfn") failed %d",
+                      ctx->save.batch_pfns[i], bckp_mfns[i], bckp_errors[i]);
+                rc = -1;
+                goto err;
+        }
+    }
+
+err:
+    free(errors);
+    free(bckp_errors);
     return rc;
 
 }
-//#endif
 
 static int memcpy_write_batch(struct xc_sr_context *ctx)
 {
@@ -243,7 +258,6 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
         types[i] = mfns[i] = ctx->save.ops.pfn_to_gfn(ctx,
                                                       ctx->save.batch_pfns[i]);
         dirtied_bckp_mfns[i] = bckp_mfns[ctx->save.batch_pfns[i]];
-        //batch_pfns[i] = ctx->save.batch_pfns[i];
 
         // Likely a ballooned page.
         if ( mfns[i] == INVALID_MFN )
@@ -281,25 +295,6 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     DPRINTF("SUNNY: write_batch_b started at %.9f seconds\n", (1.0*(wb_start.tv_sec) + (1.0e-9*(wb_start.tv_nsec))));
     if ( nr_pages > 0 )
     {
-/*
-        guest_mapping = xenforeignmemory_map(xch->fmem,
-            ctx->domid, PROT_READ, nr_pages, mfns, errors);
-
-        bckp_guest_mapping = bckp_page = xenforeignmemory_map(xch->fmem,
-            bckp_domid, PROT_READ | PROT_WRITE, nr_pages, dirtied_bckp_mfns, errors);
-
-        if ( !bckp_guest_mapping )
-        {
-            PERROR("SR: Failed to map backup guest pages");
-            goto err;
-        }
-
-        if ( !guest_mapping )
-        {
-            PERROR("Failed to map guest pages");
-            goto err;
-        }
-*/
         nr_pages_mapped = nr_pages;
 
         DPRINTF("SR: Before memcpy: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
@@ -439,8 +434,6 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     DPRINTF("SUNNY: write_batch_f started at %.9f seconds\n", (1.0*(wf_start.tv_sec) + (1.0e-9*(wf_start.tv_nsec))));
  err:
     free(rec_pfns);
-    //if ( guest_mapping )
-        //xenforeignmemory_unmap(xch->fmem, guest_mapping, nr_pages_mapped);
     for ( i = 0; local_pages && i < nr_pfns; ++i )
         free(local_pages[i]);
     free(iov);
@@ -449,9 +442,6 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     //free(errors);
     free(types);
     //free(mfns);
-
-    //if ( bckp_guest_mapping )
-        //xenforeignmemory_unmap(xch->fmem, bckp_guest_mapping, nr_pages_mapped);
     //free(dirtied_bckp_mfns);
     free(pfns_to_send);
 
