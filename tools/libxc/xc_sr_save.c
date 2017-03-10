@@ -195,6 +195,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
 
     xen_pfn_t *dirtied_bckp_mfns = NULL;
     xen_pfn_t *pfns_to_send = NULL;
+    /* Index to hold save.batch_pfns. For ease of iterating over  */
     xen_pfn_t *batch_pfns = NULL;
 
     void *bckp_page;
@@ -228,8 +229,6 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     dirtied_bckp_mfns = malloc(nr_pfns * sizeof(*dirtied_bckp_mfns));
     /* pfns to send via writev */
     pfns_to_send = malloc(nr_pfns * sizeof(*pfns_to_send));
-    /* Index to hold save.batch_pfns. For ease of iterating over  */
-    batch_pfns = malloc(nr_pfns * sizeof(*batch_pfns));
 
 
     if ( !mfns || !types || !guest_data || !local_pages || !iov ||
@@ -424,7 +423,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     free(types);
     free(mfns);
     free(pfns_to_send);
-    //free(dirtied_bckp_mfns);
+    free(dirtied_bckp_mfns);
     //free(batch_pfns);
 
     return rc;
