@@ -17,7 +17,6 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <time.h>
 
 #include <libvmi/libvmi.h>
 #include "xc_pipe.h"
