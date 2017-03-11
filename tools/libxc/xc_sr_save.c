@@ -21,23 +21,18 @@
 #include <libvmi/libvmi.h>
 #include "xc_pipe.h"
 
-struct timespec tstart={0,0}, tend={0,0};
-struct timespec sstart={0,0}, ssend={0,0};
-struct timespec dstart={0,0}, dend={0,0};
-struct timespec wa_start={0,0}, wb_start={0,0};
-struct timespec wc_start={0,0}, wd_start={0,0};
-struct timespec we_start={0,0}, wf_start={0,0};
-struct timespec lvmi_start = {0, 0}, lvmi_end = {0, 0};
-struct timespec add_start={0,0}, add_end={0,0}, flush_end={0,0};
-
-void *bckp_guest_mapping = NULL;
-void *guest_mapping = NULL;
+/* Backup VM memcpy related variables */
 #define MAX_BUF 1024
-//#define DISABLE_LIBVMI
-int READ_MFNS = 0;
+
+void *bckp_guest_mapping    =   NULL;
+void *guest_mapping         =   NULL;
+int READ_MFNS               =   0;
 uint32_t bckp_domid;
 unsigned long bckp_mfns [131072] = { 0 };
 unsigned nr_end_checkpoint = 0;
+
+/* LibVMI related variables */
+//#define DISABLE_LIBVMI
 
 int counter = 1;
 char * xen_write_ff = "/home/harpreet10oct/test_dir_sample_code/xen_to_vmi";        //Linux Pipe
@@ -47,6 +42,18 @@ int xen_write_fd = 0;             //Linux Pipe 1
 int xen_read_fd = 0;            //Linux Pipe 2
 
 struct vmi_requirements vmi_req;
+
+/* Timer related variables */
+typedef long long NANOSECONDS;
+typedef struct timespec TIMESPEC;
+
+static inline NANOSECONDS ns_timer(void)
+{
+    TIMESPEC curr_time;
+    clock_gettime(CLOCK_MONOTONIC, &curr_time);
+    return (NANOSECONDS) (curr_time.tv_sec * 1000000000LL) +
+        (NANOSECONDS) (curr_time.tv_nsec);
+}
 
 /* Writes an Image header and Domain header into the stream.
  */
@@ -263,8 +270,8 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     }
     rc = -1;
 
-    clock_gettime(CLOCK_MONOTONIC, &wa_start);
-    DPRINTF("SUNNY: write_batch_a started at %.9f seconds\n", (1.0*(wa_start.tv_sec) + (1.0e-9*(wa_start.tv_nsec))));
+    DPRINTF("Time at wb_a %lld", ns_timer());
+
     for ( i = 0; i < nr_pfns; ++i )
     {
         switch ( types[i] )
@@ -279,15 +286,15 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
         mfns[nr_pages] = mfns[i];
         ++nr_pages;
     }
-    clock_gettime(CLOCK_MONOTONIC, &wb_start);
-    DPRINTF("SUNNY: write_batch_b started at %.9f seconds\n", (1.0*(wb_start.tv_sec) + (1.0e-9*(wb_start.tv_nsec))));
+
+    DPRINTF("Time at wb_b %lld", ns_timer());
+
     if ( nr_pages > 0 )
     {
         nr_pages_mapped = nr_pages;
 
         DPRINTF("SR: Before memcpy: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
-    clock_gettime(CLOCK_MONOTONIC, &wc_start);
-    DPRINTF("SUNNY: write_batch_c started at %.9f seconds\n", (1.0*(wc_start.tv_sec) + (1.0e-9*(wc_start.tv_nsec))));
+        DPRINTF("Time at wb_c %lld", ns_timer());
 
         for ( i = 0, j = 0, p = 0; i < nr_pfns; ++i )
         {
@@ -344,10 +351,9 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
         }
     }
 
+    DPRINTF("Time at wb_d %lld", ns_timer());
 
-    clock_gettime(CLOCK_MONOTONIC, &wd_start);
-    DPRINTF("SUNNY: write_batch_d started at %.9f seconds\n", (1.0*(wd_start.tv_sec) + (1.0e-9*(wd_start.tv_nsec))));
-   DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
+    DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
 
     nr_pfns = j;
 
@@ -383,8 +389,8 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     iov[3].iov_len = nr_pfns * sizeof(*rec_pfns);
 
     iovcnt = 4;
-    clock_gettime(CLOCK_MONOTONIC, &we_start);
-    DPRINTF("SUNNY: write_batch_e started at %.9f seconds\n", (1.0*(we_start.tv_sec) + (1.0e-9*(we_start.tv_nsec))));
+
+    DPRINTF("Time at wb_e %lld", ns_timer());
 
     if ( nr_pages )
     {
@@ -410,9 +416,9 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     assert(nr_pages == 0);
     rc = ctx->save.nr_batch_pfns = 0;
 
-    clock_gettime(CLOCK_MONOTONIC, &wf_start);
-    DPRINTF("SUNNY: write_batch_f started at %.9f seconds\n", (1.0*(wf_start.tv_sec) + (1.0e-9*(wf_start.tv_nsec))));
- err:
+    DPRINTF("Time at wb_e %lld", ns_timer());
+
+err:
     free(rec_pfns);
     for ( i = 0; local_pages && i < nr_pfns; ++i )
         free(local_pages[i]);
@@ -423,7 +429,6 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     free(mfns);
     free(pfns_to_send);
     free(dirtied_bckp_mfns);
-    //free(batch_pfns);
 
     return rc;
 }
@@ -724,9 +729,9 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
     int rc;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
+
     DPRINTF("SR: p2m size is %ld", ctx->save.p2m_size);
-    clock_gettime(CLOCK_MONOTONIC, &add_start);
-    DPRINTF("SUNNY: add_to_batch started at %.9f seconds\n", (1.0*(add_start.tv_sec) + (1.0e-9*(add_start.tv_nsec))));
+    DPRINTF("Time at a2b_a %lld", ns_timer());
 
     for ( p = 0, written = 0; p < ctx->save.p2m_size; ++p )
     {
@@ -743,13 +748,13 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
 
         ++written;
     }
-    clock_gettime(CLOCK_MONOTONIC, &add_end);
-    DPRINTF("SUNNY: add_to_batch ended at %.9f seconds\n", (1.0*(add_end.tv_sec) + (1.0e-9*(add_end.tv_nsec))));
+
+    DPRINTF("Time at a2b_b %lld", ns_timer());
 
     rc = flush_batch(ctx);
 
-    clock_gettime(CLOCK_MONOTONIC, &flush_end);
-    DPRINTF("SUNNY: flush_batch ended at %.9f seconds\n", (1.0*(flush_end.tv_sec) + (1.0e-9*(flush_end.tv_nsec))));
+    DPRINTF("Time at fb_a %lld", ns_timer());
+
     if ( rc )
         return rc;
 
@@ -968,16 +973,11 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
-    clock_gettime(CLOCK_MONOTONIC, &sstart);
-    DPRINTF("SUNNY: Domain was suspending at %.9f seconds\n", (1.0*(sstart.tv_sec) + (1.0e-9*(sstart.tv_nsec))));
+    DPRINTF("Time at suspend %lld", ns_timer());
 
     rc = suspend_domain(ctx);
 
-/*    clock_gettime(CLOCK_MONOTONIC, &ssend);
-    DPRINTF("SUNNY: suspend_domain fn call took %.9f seconds\n",
-            (1.0*(ssend.tv_sec - sstart.tv_sec)) +
-            (1.0e-9*(ssend.tv_nsec - sstart.tv_nsec)));
- */   if ( rc )
+   if ( rc )
         goto out;
 #ifndef DISABLE_LIBVMI
     DPRINTF("Starting Address: %s\n", start_addr);
@@ -1004,8 +1004,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         xen_read_fd = open(xen_read_ff, O_RDONLY);      //open Pipe 2 for Read
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &lvmi_start);
-    DPRINTF("SUNNY: Writing to LibVMI at %.9f seconds\n", (1.0*(lvmi_start.tv_sec) + (1.0e-9*(lvmi_start.tv_nsec))));
+    DPRINTF("Time at vmi_write %lld", ns_timer());
+
     rc = write(xen_write_fd, vmi_req.st_addr, sizeof(void *));//Write start address to Pipe 1
     fsync(xen_write_fd);
     fprintf(stderr, "Written 1st address %" PRIu64 " Successfully!!\n", *(vmi_req.st_addr));
@@ -1014,8 +1014,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     rc = read(xen_read_fd, &buf, sizeof(int)); //Read Accept or Reject as 1 or 0
     fprintf(stderr,"REMUS: Received: %d\n", buf);
 
-    clock_gettime(CLOCK_MONOTONIC, &lvmi_end);
-    DPRINTF("SUNNY: Reading from LibVMI at %.9f seconds\n", (1.0*(lvmi_end.tv_sec) + (1.0e-9*(lvmi_end.tv_nsec))));
+    DPRINTF("Time at vmi_read %lld", ns_timer());
 
 /*--------------------------------------------------------------------------*/
 /*
@@ -1071,16 +1070,14 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     }
 
     DPRINTF("SUNNY: Dirty page count is %u", stats.dirty_count);
-
-    clock_gettime(CLOCK_MONOTONIC, &dstart);
-    DPRINTF("SUNNY: Sending dirtied_pages started at %.9f seconds\n", (1.0*(dstart.tv_sec) + (1.0e-9*(dstart.tv_nsec))));
+    DPRINTF("Time at dp_start %lld", ns_timer());
 
     rc = send_dirty_pages(ctx, stats.dirty_count + ctx->save.nr_deferred_pages);
+
+    DPRINTF("Time at dp_end %lld", ns_timer());
+
     if ( rc )
         goto out;
-
-    clock_gettime(CLOCK_MONOTONIC, &dend);
-    DPRINTF("SUNNY: Sending dirtied_pages finished at %.9f seconds\n", (1.0*(dend.tv_sec) + (1.0e-9*(dend.tv_nsec))));
 
     bitmap_clear(ctx->save.deferred_pages, ctx->save.p2m_size);
     ctx->save.nr_deferred_pages = 0;
@@ -1277,7 +1274,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
             goto err;
 
         DPRINTF("SUNNY: starting migration, suspending domain");
-        //clock_gettime(CLOCK_MONOTONIC, &tstart);
 
         if ( ctx->save.live ) {
             rc = send_domain_memory_live(ctx);
@@ -1319,8 +1315,6 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
              */
             ctx->save.live = false;
 
-            //DPRINTF("SUNNY: Write Checkpoint record at %.9f seconds\n",
-            //(1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
             rc = write_checkpoint_record(ctx);
             if ( rc )
                 goto err;
@@ -1335,11 +1329,9 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
                 }
             }
 
-
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
-            clock_gettime(CLOCK_MONOTONIC, &tend);
-            DPRINTF("SUNNY: Domain was resumed at %.9f seconds\n",
-            (1.0*(tend.tv_sec)) + (1.0e-9*(tend.tv_nsec)));
+
+            DPRINTF("Time at resume %lld", ns_timer());
 
             if ( rc <= 0 )
                 goto err;
