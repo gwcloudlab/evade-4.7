@@ -238,7 +238,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
 
 
     if ( !mfns || !types || !guest_data || !local_pages || !iov ||
-            !dirtied_bckp_mfns || !pfns_to_send || !batch_pfns)
+            !dirtied_bckp_mfns || !pfns_to_send)
     {
         ERROR("Unable to allocate arrays for a batch of %u pages",
               nr_pfns);
@@ -270,7 +270,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     }
     rc = -1;
 
-    DPRINTF("Time at wb_a %lld ns", ns_timer());
+    DPRINTF("Time at sr_wb_a %lld ns", ns_timer());
 
     for ( i = 0; i < nr_pfns; ++i )
     {
@@ -287,14 +287,14 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
         ++nr_pages;
     }
 
-    DPRINTF("Time at wb_b %lld ns", ns_timer());
+    DPRINTF("Time at sr_wb_b %lld ns", ns_timer());
 
     if ( nr_pages > 0 )
     {
         nr_pages_mapped = nr_pages;
 
         DPRINTF("SR: Before memcpy: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
-        DPRINTF("Time at wb_c %lld ns", ns_timer());
+        DPRINTF("Time at sr_wb_c %lld ns", ns_timer());
 
         for ( i = 0, j = 0, p = 0; i < nr_pfns; ++i )
         {
@@ -351,7 +351,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
         }
     }
 
-    DPRINTF("Time at wb_d %lld ns", ns_timer());
+    DPRINTF("Time at sr_wb_d %lld ns", ns_timer());
 
     DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
 
@@ -390,7 +390,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
 
     iovcnt = 4;
 
-    DPRINTF("Time at wb_e %lld ns", ns_timer());
+    DPRINTF("Time at sr_wb_e %lld ns", ns_timer());
 
     if ( nr_pages )
     {
@@ -416,7 +416,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     assert(nr_pages == 0);
     rc = ctx->save.nr_batch_pfns = 0;
 
-    DPRINTF("Time at wb_e %lld ns", ns_timer());
+    DPRINTF("Time at sr_wb_f %lld ns", ns_timer());
 
 err:
     free(rec_pfns);
@@ -731,7 +731,7 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
                                     &ctx->save.dirty_bitmap_hbuf);
 
     DPRINTF("SR: p2m size is %ld", ctx->save.p2m_size);
-    DPRINTF("Time at a2b_a %lld ns", ns_timer());
+    DPRINTF("Time at sr_add2batch_start %lld ns", ns_timer());
 
     for ( p = 0, written = 0; p < ctx->save.p2m_size; ++p )
     {
@@ -749,11 +749,11 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
         ++written;
     }
 
-    DPRINTF("Time at a2b_b %lld ns", ns_timer());
+    DPRINTF("Time at sr_add2batch_end %lld ns", ns_timer());
 
     rc = flush_batch(ctx);
 
-    DPRINTF("Time at fb_a %lld ns", ns_timer());
+    //DPRINTF("Time at sr_flushbatch_end %lld ns", ns_timer());
 
     if ( rc )
         return rc;
@@ -973,12 +973,15 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
 
-    DPRINTF("Time at suspend %lld ns", ns_timer());
+    DPRINTF("Time at sr_suspend_start %lld ns", ns_timer());
 
     rc = suspend_domain(ctx);
 
-   if ( rc )
+    if ( rc )
         goto out;
+
+    DPRINTF("Time at sr_suspend_end %lld ns\n", ns_timer());
+
 #ifndef DISABLE_LIBVMI
     DPRINTF("Starting Address: %s\n", start_addr);
 
@@ -1004,7 +1007,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         xen_read_fd = open(xen_read_ff, O_RDONLY);      //open Pipe 2 for Read
     }
 
-    DPRINTF("Time at vmi_write %lld ns", ns_timer());
+    DPRINTF("Time at sr_vmi_write %lld ns", ns_timer());
 
     rc = write(xen_write_fd, vmi_req.st_addr, sizeof(void *));//Write start address to Pipe 1
     fsync(xen_write_fd);
@@ -1014,7 +1017,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     rc = read(xen_read_fd, &buf, sizeof(int)); //Read Accept or Reject as 1 or 0
     fprintf(stderr,"REMUS: Received: %d\n", buf);
 
-    DPRINTF("Time at vmi_read %lld ns", ns_timer());
+    DPRINTF("Time at sr_vmi_read %lld ns", ns_timer());
 
 /*--------------------------------------------------------------------------*/
 /*
@@ -1070,11 +1073,11 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     }
 
     DPRINTF("SUNNY: Dirty page count is %u pages", stats.dirty_count);
-    DPRINTF("Time at dp_start %lld ns", ns_timer());
+    DPRINTF("Time at sr_dirtypage_start %lld ns", ns_timer());
 
     rc = send_dirty_pages(ctx, stats.dirty_count + ctx->save.nr_deferred_pages);
 
-    DPRINTF("Time at dp_end %lld ns", ns_timer());
+    DPRINTF("Time at sr_dirtypage_end %lld ns", ns_timer());
 
     if ( rc )
         goto out;
@@ -1331,7 +1334,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
 
             rc = ctx->save.callbacks->postcopy(ctx->save.callbacks->data);
 
-            DPRINTF("Time at resume %lld ns", ns_timer());
+            DPRINTF("Time at sr_resume %lld ns", ns_timer());
 
             if ( rc <= 0 )
                 goto err;
