@@ -329,7 +329,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
 
             else
             {
-                if ( i < 10 ) /* `page` hasn't been modified */
+                if ( i < 1 ) /* `page` hasn't been modified */
                 {
                     guest_data[j] = page;
                     pfns_to_send[j] = ctx->save.batch_pfns[i];
@@ -731,6 +731,7 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
                                     &ctx->save.dirty_bitmap_hbuf);
 
     DPRINTF("SR: p2m size is %ld", ctx->save.p2m_size);
+
     DPRINTF("Time at sr_add2batch_start %lld ns", ns_timer());
 
     for ( p = 0, written = 0; p < ctx->save.p2m_size; ++p )
@@ -753,7 +754,7 @@ static int send_dirty_pages(struct xc_sr_context *ctx,
 
     rc = flush_batch(ctx);
 
-    //DPRINTF("Time at sr_flushbatch_end %lld ns", ns_timer());
+    DPRINTF("Time at sr_flushbatch_end %lld ns", ns_timer());
 
     if ( rc )
         return rc;
