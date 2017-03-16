@@ -4,10 +4,13 @@
 
 #include "xc_sr_common.h"
 
+/* Change this to work with bigger VMs *
+ * MAX_P2M_SIZE = VM_mem_size * 1024/4 *
+ * For a 512MB VM, 512 * 256 = 131072. */
+#define MAX_P2M_SIZE 262144
+
 unsigned SENT_MFNS = 0, ITER = 0;
-//unsigned WRITE_COUNTER = 0;
-//xen_pfn_t *mfns_to_be_sent = NULL;
-xen_pfn_t mfns_to_be_sent[131072] = { 0 };
+xen_pfn_t *mfns_to_be_sent;
 
 /*
  * Read and validate the Image and Domain headers.
@@ -141,10 +144,9 @@ int populate_pfns(struct xc_sr_context *ctx, unsigned count,
 {
     xc_interface *xch = ctx->xch;
     xen_pfn_t *mfns = malloc(count * sizeof(*mfns)),
-        *pfns = malloc(count * sizeof(*pfns));
+    *pfns = malloc(count * sizeof(*pfns));
     unsigned i, nr_pfns = 0;
     int rc = -1;
-    //mfns_to_be_sent = realloc(mfns_to_be_sent, count * sizeof(*mfns_to_be_sent));
 
     if ( !mfns || !pfns )
     {
@@ -190,8 +192,7 @@ int populate_pfns(struct xc_sr_context *ctx, unsigned count,
             ctx->restore.ops.set_gfn(ctx, pfns[i], mfns[i]);
             ITER = pfns[i];
             mfns_to_be_sent[ITER] = mfns[i];
-            //fprintf(stderr, "SR: pfns[%d] = %ld, mfns[%d] = %ld\n", i, pfns[i], i, mfns[i]);
-            //fprintf(stderr, "SR: mfns_to_be_sent[%d] = %ld\n", ITER, mfns_to_be_sent[ITER]);
+            ctx->restore.nr_mfns++;
         }
     }
 
@@ -513,37 +514,22 @@ err:
 	free(iov);
 	return rc;
 }
-/*
-   static int write_mfns_to_file(struct xc_sr_context *ctx)
-   {
-   int rc = 0;
-   unsigned long i, count = 131072;
-   FILE *fp;
 
-   fp = fopen("/tmp/backup_mfns.txt", "w+");
-
-   fprintf(fp, "%d\n", ctx->domid);
-   for (i = 0; i < count; ++i)
-   fprintf(fp, "%ld\n", ctx->restore.ops.pfn_to_gfn(ctx, i));
-   fclose(fp);
-
-   return rc;
-   }
- */
 static int send_mfns_to_primary(struct xc_sr_context *ctx)
 {
-	int rc = 0;
-	unsigned long i, count = 131072;
+	unsigned i;
 	FILE *fp;
-
+    unsigned nr_mfns = ctx->restore.nr_mfns;
 	fp = fopen("/tmp/test.txt", "w+");
 
 	fprintf(fp, "%d\n", ctx->domid);
-	for (i = 0; i < count; ++i)
+	for (i = 0; i < nr_mfns; ++i)
 		fprintf(fp, "%ld\n", mfns_to_be_sent[i]);
 	fclose(fp);
 
-	return rc;
+    free(mfns_to_be_sent);
+    /* Should properly error check */
+	return 0;
 }
 
 static int process_record(struct xc_sr_context *ctx, struct xc_sr_record *rec);
@@ -794,7 +780,6 @@ static int restore(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     struct xc_sr_record rec;
     int rc, saved_rc = 0, saved_errno = 0;
-//    int last_cps = 0;
     IPRINTF("Restoring domain");
 
     rc = setup(ctx);
@@ -992,9 +977,11 @@ int xc_domain_restore(xc_interface *xch, int io_fd, uint32_t dom,
     }
 
     ctx.restore.p2m_size = nr_pfns;
+    ctx.restore.nr_mfns = 0;
+    mfns_to_be_sent = malloc(MAX_P2M_SIZE * sizeof(*mfns_to_be_sent));
 
-    //DPRINTF("SR: Number of PFNS: %lu", nr_pfns);
-    //mfns_to_be_sent = malloc(nr_pfns * sizeof(unsigned long));
+    if ( !mfns_to_be_sent )
+        return 0;
 
     if ( ctx.dominfo.hvm )
     {

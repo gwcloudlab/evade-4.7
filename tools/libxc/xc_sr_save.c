@@ -28,7 +28,8 @@ void *bckp_guest_mapping    =   NULL;
 void *guest_mapping         =   NULL;
 int READ_MFNS               =   0;
 uint32_t bckp_domid;
-unsigned long bckp_mfns [131072] = { 0 };
+//unsigned long bckp_mfns [131072] = { 0 };
+unsigned long *bckp_mfns;
 unsigned nr_end_checkpoint = 0;
 
 /* LibVMI related variables */
@@ -947,12 +948,21 @@ static int get_mfns_from_backup(struct xc_sr_context *ctx)
     unsigned long num, i = 0;
     int rc = 0;
     int a;
+    unsigned nr_pfns = ctx->save.p2m_size;
+    bckp_mfns = malloc(nr_pfns * sizeof(*bckp_mfns));
+    if ( !bckp_mfns)
+    {
+        rc = -1;
+        goto err;
+    }
+
     a = fscanf(file, "%d", &bckp_domid);
     while(fscanf(file, "%lu", &num) > 0) {
         bckp_mfns[i] = num;
         i++;
     }
     fclose(file);
+err:
     return rc;
 }
 

@@ -218,6 +218,7 @@ struct xc_sr_context
             struct restore_callbacks *callbacks;
 
             int send_back_fd;
+            unsigned long nr_mfns;
             unsigned long p2m_size;
             xc_hypercall_buffer_t dirty_bitmap_hbuf;
 
