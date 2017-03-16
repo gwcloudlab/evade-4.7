@@ -201,45 +201,28 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     xen_pfn_t *types = NULL;
 
     xen_pfn_t *dirtied_bckp_mfns = NULL;
-    xen_pfn_t *pfns_to_send = NULL;
     /* Index to hold save.batch_pfns. For ease of iterating over  */
     xen_pfn_t *batch_pfns = NULL;
 
     void *bckp_page;
-    unsigned j = 0, nr_memcopied = 0;
-    void **guest_data = NULL;
     void **local_pages = NULL;
     int rc = -1;
     unsigned i, p, nr_pages = 0, nr_pages_mapped = 0;
     unsigned nr_pfns = ctx->save.nr_batch_pfns;
     void *page, *orig_page;
-    uint64_t *rec_pfns = NULL;
-    struct iovec *iov = NULL; int iovcnt = 0;
-    struct xc_sr_rec_page_data_header hdr = { 0 };
-    struct xc_sr_record rec =
-    {
-        .type = REC_TYPE_PAGE_DATA,
-    };
 
     assert(nr_pfns != 0);
     /* Types of the batch pfns. */
     types = malloc(nr_pfns * sizeof(*types));
     /* Mfns of the batch pfns. */
     mfns = malloc(nr_pfns * sizeof(*mfns));
-    /* Pointers to page data to send.  Mapped gfns or local allocations. */
-    guest_data = calloc(nr_pfns, sizeof(*guest_data));
     /* Pointers to locally allocated pages.  Need freeing. */
     local_pages = calloc(nr_pfns, sizeof(*local_pages));
-    /* iovec[] for writev(). */
-    iov = malloc((nr_pfns + 4) * sizeof(*iov));
-    /* Mfns of backup VM to memcpy to */
+   /* Mfns of backup VM to memcpy to */
     dirtied_bckp_mfns = malloc(nr_pfns * sizeof(*dirtied_bckp_mfns));
-    /* pfns to send via writev */
-    pfns_to_send = malloc(nr_pfns * sizeof(*pfns_to_send));
 
 
-    if ( !mfns || !types || !guest_data || !local_pages || !iov ||
-            !dirtied_bckp_mfns || !pfns_to_send)
+    if ( !mfns || !types || !local_pages || !dirtied_bckp_mfns)
     {
         ERROR("Unable to allocate arrays for a batch of %u pages",
               nr_pfns);
@@ -294,10 +277,9 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     {
         nr_pages_mapped = nr_pages;
 
-        DPRINTF("SR: Before memcpy: nr_pages = %d, nr_pfns = %d", nr_pages, nr_pfns);
         DPRINTF("Time at sr_wb_c %lld ns", ns_timer());
 
-        for ( i = 0, j = 0, p = 0; i < nr_pfns; ++i )
+        for ( i = 0, p = 0; i < nr_pfns; ++i )
         {
             switch ( types[i] )
             {
@@ -318,7 +300,6 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
             {
                 if ( rc == -1 && errno == EAGAIN )
                 {
-                    DPRINTF("SR: Deferred Dirty pfn[%u] = %lu", i, ctx->save.batch_pfns[i]);
                     set_bit(ctx->save.batch_pfns[i], ctx->save.deferred_pages);
                     ++ctx->save.nr_deferred_pages;
                     types[i] = XEN_DOMCTL_PFINFO_XTAB;
@@ -330,21 +311,9 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
 
             else
             {
-                if ( i < 1 ) /* `page` hasn't been modified */
-                {
-                    guest_data[j] = page;
-                    pfns_to_send[j] = ctx->save.batch_pfns[i];
-                    assert(pfns_to_send[j] <= ctx->x86_pv.max_pfn);
-                    ++j;
-                }
-
-                else
-                {
                     bckp_page = bckp_guest_mapping + (batch_pfns[p] * PAGE_SIZE);
                     memcpy(bckp_page, page, PAGE_SIZE);
-                    ++nr_memcopied;
                     --nr_pages;
-                }
             }
 
             rc = -1;
@@ -352,84 +321,18 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
         }
     }
 
-    DPRINTF("Time at sr_wb_d %lld ns", ns_timer());
-
-    DPRINTF("SR: nr_memcopied pages = %d, j = %d", nr_memcopied, j);
-
-    nr_pfns = j;
-
-    rec_pfns = malloc(nr_pfns * sizeof(*rec_pfns));
-    if ( !rec_pfns )
-    {
-        ERROR("Unable to allocate %zu bytes of memory for page data pfn list",
-              nr_pfns * sizeof(*rec_pfns));
-        goto err;
-    }
-
-    hdr.count = nr_pfns;
-
-    rec.length = sizeof(hdr);
-    rec.length += nr_pfns * sizeof(*rec_pfns);
-    rec.length += nr_pages * PAGE_SIZE;
-
-    for ( i = 0; i < nr_pfns; ++i )
-            rec_pfns[i] = ((uint64_t)(types[i]) << 32) | pfns_to_send[i];
-
-    DPRINTF("SR: pfns_to_send[%d] = %lu", i-1, pfns_to_send[i-1]);
-
-    iov[0].iov_base = &rec.type;
-    iov[0].iov_len = sizeof(rec.type);
-
-    iov[1].iov_base = &rec.length;
-    iov[1].iov_len = sizeof(rec.length);
-
-    iov[2].iov_base = &hdr;
-    iov[2].iov_len = sizeof(hdr);
-
-    iov[3].iov_base = rec_pfns;
-    iov[3].iov_len = nr_pfns * sizeof(*rec_pfns);
-
-    iovcnt = 4;
-
-    DPRINTF("Time at sr_wb_e %lld ns", ns_timer());
-
-    if ( nr_pages )
-    {
-        for ( i = 0; i < nr_pfns; ++i )
-        {
-            if ( guest_data[i] )
-            {
-                iov[iovcnt].iov_base = guest_data[i];
-                iov[iovcnt].iov_len = PAGE_SIZE;
-                iovcnt++;
-                --nr_pages;
-            }
-        }
-    }
-
-    if ( writev_exact(ctx->fd, iov, iovcnt) )
-    {
-        PERROR("Failed to write page data to stream");
-        goto err;
-    }
-
     /* Sanity check we have sent all the pages we expected to. */
     assert(nr_pages == 0);
     rc = ctx->save.nr_batch_pfns = 0;
 
-    DPRINTF("Time at sr_wb_f %lld ns", ns_timer());
+    DPRINTF("Time at sr_wb_d %lld ns", ns_timer());
 
 err:
-    free(rec_pfns);
     for ( i = 0; local_pages && i < nr_pfns; ++i )
         free(local_pages[i]);
-    free(iov);
     free(local_pages);
-    free(guest_data);
     free(types);
     free(mfns);
-    free(pfns_to_send);
-    free(dirtied_bckp_mfns);
 
     return rc;
 }
