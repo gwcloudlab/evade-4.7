@@ -22,13 +22,10 @@
 #include "xc_pipe.h"
 
 /* Backup VM memcpy related variables */
-#define MAX_BUF 1024
-
 void *bckp_guest_mapping    =   NULL;
 void *guest_mapping         =   NULL;
 int READ_MFNS               =   0;
 uint32_t bckp_domid;
-//unsigned long bckp_mfns [131072] = { 0 };
 unsigned long *bckp_mfns;
 unsigned nr_end_checkpoint = 0;
 
@@ -185,13 +182,10 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
 
 err:
     free(mfns);
-    /* Cannot free a non-heap object. bckp_mfns is in the stack  */
-    //free(bckp_mfns);
-    /*If there are no errors you can safely free them*/
     free(errors);
     free(bckp_errors);
-    return rc;
 
+    return rc;
 }
 
 static int memcpy_write_batch(struct xc_sr_context *ctx)
@@ -853,7 +847,7 @@ static int get_mfns_from_backup(struct xc_sr_context *ctx)
     int a;
     unsigned nr_pfns = ctx->save.p2m_size;
     bckp_mfns = malloc(nr_pfns * sizeof(*bckp_mfns));
-    if ( !bckp_mfns)
+    if ( !bckp_mfns )
     {
         rc = -1;
         goto err;
@@ -1306,6 +1300,8 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
 
  done:
     cleanup(ctx);
+
+    free(bckp_mfns);
 
     if ( saved_rc )
     {
