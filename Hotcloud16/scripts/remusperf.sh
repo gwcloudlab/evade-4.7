@@ -12,8 +12,7 @@ USAGE: remusperf [-d <netbuf|nonet>] [-s <localhost|remote>] [-n VM hostname] [-
                  -t seconds      # benchmark time to run (only if benchmark supports it)
                  -h help         # Display usage message
   eg,
-       remusperf -n suse-web -b autobench -i 30
-       remusperf -n ubuntu -b wrk -i 30
+       ./remusperf.sh -d netbuf -s localhost -n suse-web -b wrk -i 20 -t 20
 END
     exit
 }
@@ -90,7 +89,7 @@ plot-graph ()
 get-remus-results ()
 {
     for interval in ${INTS[@]}; do
-        print_statistics.py $DIR/$BENCH-$interval-$host-$net.log >> $DIR/remus-$interval.txt
+        python print_statistics.py $DIR/$BENCH-$interval-$host-$net.log >> $DIR/remus-$interval.txt
     done
 }
 
@@ -127,8 +126,11 @@ for interval in "${INTS[@]}"; do
     run-remus $interval
 done
 
-get-remus-results
+if [ $BENCH == "autobench" ]
+then
+    plot-graph
+fi
 
-plot-graph
+get-remus-results
 
 scp-all-results
