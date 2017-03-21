@@ -22,11 +22,6 @@
 #include "xc_pipe.h"
 
 /* Backup VM memcpy related variables */
-void *bckp_guest_mapping    =   NULL;
-void *guest_mapping         =   NULL;
-int READ_MFNS               =   0;
-uint32_t bckp_domid;
-unsigned long *bckp_mfns;
 unsigned nr_end_checkpoint = 0;
 
 /* LibVMI related variables */
@@ -141,20 +136,20 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
         mfns[pfn] = ctx->save.ops.pfn_to_gfn(ctx, pfn);
     }
 
-    guest_mapping = xenforeignmemory_map(xch->fmem,
+    ctx->save.primary_guest_mapping = xenforeignmemory_map(xch->fmem,
         ctx->domid, PROT_READ, nr_pfns, mfns, errors);
 
-    if ( !guest_mapping )
+    if ( !ctx->save.primary_guest_mapping )
     {
         PERROR("SR: Failed to map guest pages");
         rc = -1;
         goto err;
     }
 
-    bckp_guest_mapping = xenforeignmemory_map(xch->fmem,
-        bckp_domid, PROT_READ | PROT_WRITE, nr_pfns, bckp_mfns, errors);
+    ctx->save.bckp_guest_mapping = xenforeignmemory_map(xch->fmem,
+        ctx->save.bckp_domid, PROT_READ | PROT_WRITE, nr_pfns, ctx->save.bckp_mfns, errors);
 
-    if ( !bckp_guest_mapping )
+    if ( !ctx->save.bckp_guest_mapping )
     {
         PERROR("Failed to map backup VMs guest pages");
         rc = -1;
@@ -174,7 +169,7 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
         if (bckp_errors[i])
         {
                 ERROR("Backup VM's Mapping of pfn %#"PRIpfn" (mfn %#"PRIpfn") failed %d",
-                      ctx->save.batch_pfns[i], bckp_mfns[i], bckp_errors[i]);
+                      ctx->save.batch_pfns[i], ctx->save.bckp_mfns[i], bckp_errors[i]);
                 rc = -1;
                 goto err;
         }
@@ -230,7 +225,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     {
         types[i] = mfns[i] = ctx->save.ops.pfn_to_gfn(ctx,
                                                       ctx->save.batch_pfns[i]);
-        dirtied_bckp_mfns[i] = bckp_mfns[ctx->save.batch_pfns[i]];
+        dirtied_bckp_mfns[i] = ctx->save.bckp_mfns[ctx->save.batch_pfns[i]];
 
         // Likely a ballooned page.
         if ( mfns[i] == INVALID_MFN )
@@ -283,7 +278,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
                 continue;
             }
 
-            orig_page = page = guest_mapping + (batch_pfns[p] * PAGE_SIZE);
+            orig_page = page = ctx->save.primary_guest_mapping + (batch_pfns[p] * PAGE_SIZE);
 
             rc = ctx->save.ops.normalise_page(ctx, types[i], &page);
 
@@ -305,7 +300,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
 
             else
             {
-                    bckp_page = bckp_guest_mapping + (batch_pfns[p] * PAGE_SIZE);
+                    bckp_page = ctx->save.bckp_guest_mapping + (batch_pfns[p] * PAGE_SIZE);
                     memcpy(bckp_page, page, PAGE_SIZE);
                     --nr_pages;
             }
@@ -541,7 +536,7 @@ static int flush_batch(struct xc_sr_context *ctx)
     if ( ctx->save.nr_batch_pfns == 0 )
         return rc;
 
-    if( READ_MFNS )
+    if( ctx->save.read_mfns )
         rc = memcpy_write_batch(ctx);
     else
         rc = write_batch(ctx);
@@ -857,16 +852,16 @@ static int get_mfns_from_backup(struct xc_sr_context *ctx)
     int rc = 0;
     int a;
     unsigned nr_pfns = ctx->save.p2m_size;
-    bckp_mfns = malloc(nr_pfns * sizeof(*bckp_mfns));
-    if ( !bckp_mfns )
+    ctx->save.bckp_mfns = malloc(nr_pfns * sizeof(*ctx->save.bckp_mfns));
+    if ( !ctx->save.bckp_mfns )
     {
         rc = -1;
         goto err;
     }
 
-    a = fscanf(file, "%d", &bckp_domid);
+    a = fscanf(file, "%d", &ctx->save.bckp_domid);
     while(fscanf(file, "%lu", &num) > 0) {
-        bckp_mfns[i] = num;
+        ctx->save.bckp_mfns[i] = num;
         i++;
     }
     fclose(file);
@@ -1283,15 +1278,15 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
          *  we copy the backup's pages into a file
          *  and read those memory pages into the primary
          */
-        //if ( READ_MFNS == 123 )
-        if ( !READ_MFNS )
+        //if ( ctx->save.read_mfns == 123 )
+        if ( !ctx->save.read_mfns )
         {
             if( get_mfns_from_backup(ctx) )
                 DPRINTF("SR: Didn't read mfns");
             if( map_primary_and_backup(ctx) )
                 DPRINTF("SR: error: Mapping primary and backup failed");
 
-            READ_MFNS = 1;
+            ctx->save.read_mfns = 1;
         }
 
    } while ( ctx->save.checkpointed != XC_MIG_STREAM_NONE );
@@ -1312,7 +1307,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
  done:
     cleanup(ctx);
 
-    free(bckp_mfns);
+    free(ctx->save.bckp_mfns);
 
     if ( saved_rc )
     {
@@ -1355,6 +1350,7 @@ int xc_domain_save(xc_interface *xch, int io_fd, uint32_t dom,
      */
     ctx.save.max_iterations = 5;
     ctx.save.dirty_threshold = 50;
+    ctx.save.read_mfns = 0;
 
     /* Sanity checks for callbacks. */
     if ( hvm )
