@@ -17,7 +17,8 @@
 #include <unistd.h>
 #include <libvmi/libvmi.h>
 
-//#include "pipe.h"
+//#include "./xc_pipe.h"
+
 
 struct vmi_requirements
 {
@@ -31,94 +32,165 @@ int main (char** argv, int argc)
     struct vmi_requirements vmi_req;
     char* name = "opensuse64";
     vmi_instance_t vmi;
+    char* bckup_name = "machine";
+    vmi_instance_t bckup_vmi;
     int ret_count;
     int a = 1;
     int b = 0;
+//    int i;
+    unsigned long pid = 0;
+    pid = 8688;//strtoul(argv[1], NULL, 10);
     int *t = malloc(sizeof(int));
     int *f = malloc(sizeof(int));
     t = &a;
     f = &b;
-    uint64_t canary;
-
+//    int jump = 32;
+    uint64_t canary = 0;
+    addr_t *canary_address = NULL;
     uint64_t counter = 0;
 /*---------------------Linux Pipe---------------------------*/
     int vmi_read_fd;             //Linux Pipe 1
     int vmi_write_fd;            //Linux Pipe 2
-    char * vmi_read_ff = "/home/harpreet10oct/test_dir_sample_code/xen_to_vmi";        //Linux Pipe
-    char * vmi_write_ff = "/home/harpreet10oct/test_dir_sample_code/vmi_to_xen";
+    int write_event_setup_fd;
+    
+    char *write_event_setup_ff = "/tmp/event_to_restore";
+    char * vmi_read_ff = "/tmp/xen_to_vmi";        //Linux Pipe
+    char * vmi_write_ff = "/tmp/vmi_to_xen";
     uint64_t *buf = malloc(sizeof(uint64_t));
 //    uint64_t st_addr, en_addr;
-
+//    addr_t loop_addr;
     mkfifo(vmi_read_ff, 0666);        //Create Pipe 1
-
+    canary_address = malloc(sizeof(uint64_t) * 20);
     vmi_read_fd = open(vmi_read_ff, O_RDONLY);      //Open Pipe 1 for Read
     vmi_write_fd = open(vmi_write_ff, O_WRONLY);      //open Pipe 2 for Write
-
-
-
+    write_event_setup_fd = open(write_event_setup_ff, O_WRONLY);
+ 
     if (vmi_init(&vmi, VMI_AUTO | VMI_INIT_COMPLETE, name) == VMI_FAILURE) {
         printf("Failed to init LibVMI library.\n");
             return 1;
     }
 
     printf("success to init LibVMI\n");
-/*
-    read(vmi_read_fd, buf, sizeof(void *));
-    fprintf(stderr,"Received: %" PRIu64 "\n", *buf);
-    vmi_req.st_addr = buf;
-    printf("Value: %" PRIu64 "\n", *(vmi_req.st_addr));
-*/
-#if 0
-    read(vmi_read_fd, &buf, MAX_BUF);
-    fprintf(stderr,"Received: %" PRIu64 "\n", buf);
-    vmi_req.en_addr = buf;
-    printf("Value: %" PRIu64 "\n", vmi_req.en_addr);
-#endif   
+  
     while(1)
     {
         /*
-         * Translate a kernel VA of the VM into its corresponding physical address
+         * Read the address of canary_list; buf has the address of canary_list
          */
+	printf("Process ID is %lu\n", pid);
         read(vmi_read_fd, buf, sizeof(void *));
-        fprintf(stderr,"Received: %" PRIu64 "\n", *buf);
+        fprintf(stderr,"Address of canary list received from Save: %lu\n", *buf);
+
         vmi_req.st_addr = buf;
-        printf("Value: %" PRIu64 "\n", *(vmi_req.st_addr));
 
-    	addr_t paddr1 = vmi_translate_kv2p ( vmi, *(vmi_req.st_addr) );
-    	//addr_t paddr2 = vmi_translate_kv2p ( vmi, vmi_req.en_addr );
-    	//ret_count = vmi_read_pa (vmi, paddr, &canary, COUNT);
-    	printf("The buffer at pa %" PRIu64 " has count: %d \n", paddr1, ret_count);
-    	printf("The value inside buf %" PRIu64 "\n", canary);
+    	addr_t vaddr1 = *(vmi_req.st_addr);
 
-        /*
-         * Read Canary from address paddr1
+	/* 
+	 * Read the address at the starting address of the canary_list
+	 */
+	ret_count = vmi_read_addr_va(vmi, vaddr1, pid, canary_address);
+    	printf("The address inside canary address: %lu is: %lu\n", vaddr1, *canary_address);
+	/*
+         * Read Canary from address canary_address[0]
          */
-        ret_count = vmi_read_pa (vmi, paddr1, &canary, COUNT);
-    	printf("The buffer at pa %" PRIu64 " has count: %d \n", paddr1, ret_count);
-	if (canary != 100)
-        {
-	    printf("Wrong canary detected\n");
-            write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
-	    fprintf(stderr, "Overflow encountered!!\n");
-            fsync(vmi_write_fd);
-	    //goto del_xen_to_vmi;
-	    //break;
-	}
-	else
+	ret_count = vmi_read_addr_va(vmi, canary_address[0], pid, &canary);
+    	printf("The value inside canary address: %lu is: %lu\n", *canary_address, canary);
+	    if (canary != 100)
+            {
+	        printf("Wrong canary detected\n");
+//                write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
+//	        fprintf(stderr, "Overflow encountered!!\n");
+//                fsync(vmi_write_fd);
+	        break;
+	    }
+ 	    else
+	    {
+                write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+                fprintf(stderr, "Written Successfully!!\n");
+                fsync(vmi_write_fd);
+	    }
+	canary = 0;
+	ret_count = vmi_read_addr_va(vmi, canary_address[0] + 34, pid, &canary);
+    	printf("The value inside canary address: %lu is: %lu\n", canary_address[0] + 34, canary);
+	    if (canary != 100)
+            {
+	        printf("Wrong canary detected\n");
+//                write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
+//	        fprintf(stderr, "Overflow encountered!!\n");
+//                fsync(vmi_write_fd);
+	        break;
+	    }
+ 	    else
+	    {
+                write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+                fprintf(stderr, "Written Successfully!!\n");
+                fsync(vmi_write_fd);
+	    }
+
+/*	loop_addr = canary_address[0] + 34;
+	for(i = 2; i < 17; i++)
 	{
-            write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
-            fprintf(stderr, "Written Successfully!!\n");
-            fsync(vmi_write_fd);
-	}
-        usleep(20000);
-   }
-        vmi_destroy(vmi);
+	    ret_count = vmi_read_addr_va(vmi, loop_addr + jump, pid, &canary);
+	    jump += 32;
+	
+	    if (canary != 100)
+            {
+	        printf("Wrong canary detected\n");
+                write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
+	        fprintf(stderr, "Overflow encountered!!\n");
+                fsync(vmi_write_fd);
+	        //break;
+	    }
+ 	    else
+	    {
+                write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+                fprintf(stderr, "Written Successfully!!\n");
+                fsync(vmi_write_fd);
+	    }
+        }
+	jump = 32;
+*/ 
+        canary = 0;  
+    }
+    write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
+    fprintf(stderr, "Overflow encountered!!\n");
+    printf("Look at canary address %lu\n", *canary_address);
+    fsync(vmi_write_fd);
+
+    vmi_destroy(vmi);
  
-    	close(vmi_read_fd);
-    	close(vmi_write_fd);
+    close(vmi_read_fd);
+    close(vmi_write_fd);
 
-    	unlink(vmi_read_ff);    
+    unlink(vmi_read_ff);    
 
+
+
+/*
+ * set-up VMI event monitoring here
+ */
+    
+/*
+ * Tell the restore code that event monitoring has been set-up in order to 
+ * unpause the back-up VM
+ */
+    write(write_event_setup_fd, t, sizeof(int));            
+    fsync(write_event_setup_fd);
+
+/*
+ * Perform event-monitoring here
+ */
+    close(write_event_setup_fd);
+    
+/*
+ * Set up backup VMs vmi here
+ */
+    
+    if (vmi_init(&bckup_vmi, VMI_AUTO | VMI_INIT_COMPLETE, bckup_name) == VMI_FAILURE) {
+        printf("Failed to init LibVMI library for Backup VM.\n");
+            return 1;
+    }
+    printf("success to init LibVMI for Backup VM\n");
 
     return 1;
 }

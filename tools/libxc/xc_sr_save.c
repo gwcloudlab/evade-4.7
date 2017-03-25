@@ -28,8 +28,6 @@ unsigned nr_end_checkpoint = 0;
 //#define DISABLE_LIBVMI
 
 int counter = 1;
-char * xen_write_ff = "/home/harpreet10oct/test_dir_sample_code/xen_to_vmi";        //Linux Pipe
-char * xen_read_ff = "/home/harpreet10oct/test_dir_sample_code/vmi_to_xen";
 int buf;
 int xen_write_fd = 0;             //Linux Pipe 1
 int xen_read_fd = 0;            //Linux Pipe 2
@@ -879,10 +877,14 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
-#ifndef DISABLE_LIBVMI
+    char * xen_write_ff = NULL;
+    char * xen_read_ff = NULL;
+
+#ifndef DISABLE_LIBVMI        
     char* start_addr = "ffff88001d669177";  //subject to change frequently
-    char* end_addr = "ffff88001d66917b";    //subject to change frequently
+//    char* end_addr = "ffff88001d66917b";    //subject to change frequently
 #endif
+
     int rc;
     DECLARE_HYPERCALL_BUFFER_SHADOW(unsigned long, dirty_bitmap,
                                     &ctx->save.dirty_bitmap_hbuf);
@@ -897,10 +899,10 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DPRINTF("Time at sr_suspend_end %lld ns\n", ns_timer());
 
 #ifndef DISABLE_LIBVMI
-    DPRINTF("Starting Address: %s\n", start_addr);
+//    DPRINTF("Starting Address: %s\n", start_addr);
 
     vmi_req.st_addr = malloc(sizeof(vmi_req.st_addr));
-    vmi_req.en_addr = malloc(sizeof(vmi_req.en_addr));
+//    vmi_req.en_addr = malloc(sizeof(vmi_req.en_addr));
 
 /*------------------------------------------------------------------------------------*/
     /*
@@ -909,13 +911,16 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DPRINTF("Start Address: %s\n", start_addr);
     *(vmi_req.st_addr) = 6299704;//(uint64_t) strtoul(start_addr, NULL, 16);
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
-
+/*
     DPRINTF("End Address: %s\n", end_addr);
     *(vmi_req.en_addr) = (uint64_t) strtoul(end_addr, NULL, strlen(end_addr));
     DPRINTF("End Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.en_addr));
+*/
 /*-------------------------------------------------------------------------------------*/
     if (counter == 1)
     {
+	xen_write_ff = "/tmp/xen_to_vmi";        //Linux Pipe
+	xen_read_ff = "/tmp/vmi_to_xen";
         mkfifo(xen_read_ff, 0666);        //Create Pipe 2
         xen_write_fd = open(xen_write_ff, O_WRONLY);      //Open Pipe 1 for Write
         xen_read_fd = open(xen_read_ff, O_RDONLY);      //open Pipe 2 for Read
