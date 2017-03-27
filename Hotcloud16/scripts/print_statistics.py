@@ -22,11 +22,11 @@ def parse(filename):
                 dirty_page_count.append(int(items[-2]))
             if "Time at" in line:
                 if "sr_suspend_start" in line:
-                    s_time = re.search('[0-9]{16}', line)
+                    s_time = re.search('[0-9]{13,16}', line)
                     suspend = s_time.group(0)
                 else:
                     key = re.search('sr_(\w+)', line)
-                    time = re.search('[0-9]{16}', line)
+                    time = re.search('[0-9]{13,16}', line)
                     timestamp[key.group(0)].append(int(int(time.group(0)) - int(suspend)))
 
     print "Avg. statistics for this run:"
