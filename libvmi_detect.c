@@ -30,16 +30,16 @@ struct vmi_requirements
 int main (char** argv, int argc)
 {
     struct vmi_requirements vmi_req;
-    char* name = "opensuse64";
+    char* name = "opensuse64";      /* Change the name to your VM */
     vmi_instance_t vmi;
     char* bckup_name = "machine";
     vmi_instance_t bckup_vmi;
     int ret_count;
     int a = 1;
     int b = 0;
-//    int i;
+
     unsigned long pid = 0;
-    pid = 8688;//strtoul(argv[1], NULL, 10);
+    pid = 8688;                     /* Add the pid of the process */
     int *t = malloc(sizeof(int));
     int *f = malloc(sizeof(int));
     t = &a;
@@ -48,6 +48,8 @@ int main (char** argv, int argc)
     uint64_t canary = 0;
     addr_t *canary_address = NULL;
     uint64_t counter = 0;
+
+
 /*---------------------Linux Pipe---------------------------*/
     int vmi_read_fd;             //Linux Pipe 1
     int vmi_write_fd;            //Linux Pipe 2
@@ -57,8 +59,7 @@ int main (char** argv, int argc)
     char * vmi_read_ff = "/tmp/xen_to_vmi";        //Linux Pipe
     char * vmi_write_ff = "/tmp/vmi_to_xen";
     uint64_t *buf = malloc(sizeof(uint64_t));
-//    uint64_t st_addr, en_addr;
-//    addr_t loop_addr;
+
     mkfifo(vmi_read_ff, 0666);        //Create Pipe 1
     canary_address = malloc(sizeof(uint64_t) * 20);
     vmi_read_fd = open(vmi_read_ff, O_RDONLY);      //Open Pipe 1 for Read
@@ -95,39 +96,47 @@ int main (char** argv, int argc)
          */
 	ret_count = vmi_read_addr_va(vmi, canary_address[0], pid, &canary);
     	printf("The value inside canary address: %lu is: %lu\n", *canary_address, canary);
-	    if (canary != 100)
-            {
-	        printf("Wrong canary detected\n");
-//                write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
-//	        fprintf(stderr, "Overflow encountered!!\n");
-//                fsync(vmi_write_fd);
-	        break;
-	    }
- 	    else
-	    {
-                write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
-                fprintf(stderr, "Written Successfully!!\n");
-                fsync(vmi_write_fd);
-	    }
+
+	if (canary != 100)
+        {
+	    printf("Wrong canary detected\n");
+#ifndef DEB
+            write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+	    fprintf(stderr, "Overflow encountered!!\n");
+            fsync(vmi_write_fd);
+//	    break;
+#endif
+	}
+ 	else
+	{
+            write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+            fprintf(stderr, "Written Successfully!!\n");
+            fsync(vmi_write_fd);
+	}
+
 	canary = 0;
 	ret_count = vmi_read_addr_va(vmi, canary_address[0] + 34, pid, &canary);
     	printf("The value inside canary address: %lu is: %lu\n", canary_address[0] + 34, canary);
-	    if (canary != 100)
-            {
-	        printf("Wrong canary detected\n");
-//                write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
-//	        fprintf(stderr, "Overflow encountered!!\n");
-//                fsync(vmi_write_fd);
-	        break;
-	    }
- 	    else
-	    {
-                write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
-                fprintf(stderr, "Written Successfully!!\n");
-                fsync(vmi_write_fd);
-	    }
 
-/*	loop_addr = canary_address[0] + 34;
+	if (canary != 100)
+        {
+	    printf("Wrong canary detected\n");
+#ifndef DEB
+            write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+	    fprintf(stderr, "Overflow encountered!!\n");
+            fsync(vmi_write_fd);
+//	        break;
+#endif
+	}
+ 	else
+	{
+            write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+            fprintf(stderr, "Written Successfully!!\n");
+            fsync(vmi_write_fd);
+	}
+
+/*
+	loop_addr = canary_address[0] + 34;
 	for(i = 2; i < 17; i++)
 	{
 	    ret_count = vmi_read_addr_va(vmi, loop_addr + jump, pid, &canary);
@@ -152,6 +161,7 @@ int main (char** argv, int argc)
 */ 
         canary = 0;  
     }
+
     write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
     fprintf(stderr, "Overflow encountered!!\n");
     printf("Look at canary address %lu\n", *canary_address);

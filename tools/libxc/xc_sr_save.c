@@ -25,7 +25,6 @@
 unsigned nr_end_checkpoint = 0;
 
 /* LibVMI related variables */
-//#define DISABLE_LIBVMI
 
 int counter = 1;
 int buf;
@@ -899,7 +898,6 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     DPRINTF("Time at sr_suspend_end %lld ns\n", ns_timer());
 
 #ifndef DISABLE_LIBVMI
-//    DPRINTF("Starting Address: %s\n", start_addr);
 
     vmi_req.st_addr = malloc(sizeof(vmi_req.st_addr));
 //    vmi_req.en_addr = malloc(sizeof(vmi_req.en_addr));
@@ -909,7 +907,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = 6299704;//(uint64_t) strtoul(start_addr, NULL, 16);
+    *(vmi_req.st_addr) = 6299704;//(uint64_t) strtoul(start_addr, NULL, 16);    /* Have to get the address printed in the malloc code */
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 /*
     DPRINTF("End Address: %s\n", end_addr);
@@ -943,7 +941,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
  *  Have to let the first checkpoint pass, as it doesn't send the vcpu information
  */
 
-    if (buf && counter == 2)
+    if (!buf && counter == 2)
     {
         fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
         close(xen_write_fd);
@@ -954,6 +952,20 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
         fprintf(stderr, "REMUS: Suspending domain");
 
         return 100;
+    }
+
+    rc = read(xen_read_fd, &buf, sizeof(int)); //Read Accept or Reject as 1 or 0
+    if (!buf && counter == 2)
+    {
+        fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
+        close(xen_write_fd);
+        close(xen_read_fd);
+    	unlink(xen_read_ff);
+    	free (vmi_req.st_addr);
+    	free (vmi_req.en_addr);
+        fprintf(stderr, "REMUS: Suspending domain");
+        
+    	return 100;
     }
     counter = 2;
 #endif
