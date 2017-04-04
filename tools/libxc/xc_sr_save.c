@@ -25,7 +25,7 @@
 unsigned nr_end_checkpoint = 0;
 
 /* LibVMI related variables */
-
+//#define ENABLE_LIBVMI  //comment to disable VMI
 int counter = 1;
 int buf;
 int xen_write_fd = 0;             //Linux Pipe 1
@@ -876,10 +876,10 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     xc_interface *xch = ctx->xch;
     xc_shadow_op_stats_t stats = { 0, ctx->save.p2m_size };
     char *progress_str = NULL;
+
+#ifdef ENABLE_LIBVMI
     char * xen_write_ff = NULL;
     char * xen_read_ff = NULL;
-
-#ifndef DISABLE_LIBVMI        
     char* start_addr = "ffff88001d669177";  //subject to change frequently
 //    char* end_addr = "ffff88001d66917b";    //subject to change frequently
 #endif
@@ -897,7 +897,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 
     DPRINTF("Time at sr_suspend_end %lld ns\n", ns_timer());
 
-#ifndef DISABLE_LIBVMI
+#ifdef ENABLE_LIBVMI
 
     vmi_req.st_addr = malloc(sizeof(vmi_req.st_addr));
 //    vmi_req.en_addr = malloc(sizeof(vmi_req.en_addr));
@@ -907,7 +907,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = 6299704;//(uint64_t) strtoul(start_addr, NULL, 16);    /* Have to get the address printed in the malloc code */
+    *(vmi_req.st_addr) = 37433400;//(uint64_t) strtoul(start_addr, NULL, 16);    /* Have to get the address printed in the malloc code */
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 /*
     DPRINTF("End Address: %s\n", end_addr);
@@ -964,7 +964,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     	free (vmi_req.st_addr);
     	free (vmi_req.en_addr);
         fprintf(stderr, "REMUS: Suspending domain");
-        
+
     	return 100;
     }
     counter = 2;

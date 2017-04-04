@@ -30,7 +30,7 @@ struct vmi_requirements
 int main (char** argv, int argc)
 {
     struct vmi_requirements vmi_req;
-    char* name = "opensuse64";      /* Change the name to your VM */
+    char* name = "suse-web";      /* Change the name to your VM */
     vmi_instance_t vmi;
     char* bckup_name = "machine";
     vmi_instance_t bckup_vmi;
@@ -38,8 +38,8 @@ int main (char** argv, int argc)
     int a = 1;
     int b = 0;
 
-    unsigned long pid = 0;
-    pid = 8688;                     /* Add the pid of the process */
+    unsigned long pid;
+    pid = 2517;                     /* Add the pid of the process */
     int *t = malloc(sizeof(int));
     int *f = malloc(sizeof(int));
     t = &a;
@@ -54,7 +54,7 @@ int main (char** argv, int argc)
     int vmi_read_fd;             //Linux Pipe 1
     int vmi_write_fd;            //Linux Pipe 2
     int write_event_setup_fd;
-    
+
     char *write_event_setup_ff = "/tmp/event_to_restore";
     char * vmi_read_ff = "/tmp/xen_to_vmi";        //Linux Pipe
     char * vmi_write_ff = "/tmp/vmi_to_xen";
@@ -65,14 +65,14 @@ int main (char** argv, int argc)
     vmi_read_fd = open(vmi_read_ff, O_RDONLY);      //Open Pipe 1 for Read
     vmi_write_fd = open(vmi_write_ff, O_WRONLY);      //open Pipe 2 for Write
     write_event_setup_fd = open(write_event_setup_ff, O_WRONLY);
- 
+
     if (vmi_init(&vmi, VMI_AUTO | VMI_INIT_COMPLETE, name) == VMI_FAILURE) {
         printf("Failed to init LibVMI library.\n");
             return 1;
     }
 
     printf("success to init LibVMI\n");
-  
+
     while(1)
     {
         /*
@@ -86,7 +86,7 @@ int main (char** argv, int argc)
 
     	addr_t vaddr1 = *(vmi_req.st_addr);
 
-	/* 
+	/*
 	 * Read the address at the starting address of the canary_list
 	 */
 	ret_count = vmi_read_addr_va(vmi, vaddr1, pid, canary_address);
@@ -141,7 +141,7 @@ int main (char** argv, int argc)
 	{
 	    ret_count = vmi_read_addr_va(vmi, loop_addr + jump, pid, &canary);
 	    jump += 32;
-	
+
 	    if (canary != 100)
             {
 	        printf("Wrong canary detected\n");
@@ -158,8 +158,8 @@ int main (char** argv, int argc)
 	    }
         }
 	jump = 32;
-*/ 
-        canary = 0;  
+*/
+        canary = 0;
     }
 
     write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
@@ -168,34 +168,34 @@ int main (char** argv, int argc)
     fsync(vmi_write_fd);
 
     vmi_destroy(vmi);
- 
+
     close(vmi_read_fd);
     close(vmi_write_fd);
 
-    unlink(vmi_read_ff);    
+    unlink(vmi_read_ff);
 
 
 
 /*
  * set-up VMI event monitoring here
  */
-    
+
 /*
- * Tell the restore code that event monitoring has been set-up in order to 
+ * Tell the restore code that event monitoring has been set-up in order to
  * unpause the back-up VM
  */
-    write(write_event_setup_fd, t, sizeof(int));            
+    write(write_event_setup_fd, t, sizeof(int));
     fsync(write_event_setup_fd);
 
 /*
  * Perform event-monitoring here
  */
     close(write_event_setup_fd);
-    
+
 /*
  * Set up backup VMs vmi here
  */
-    
+
     if (vmi_init(&bckup_vmi, VMI_AUTO | VMI_INIT_COMPLETE, bckup_name) == VMI_FAILURE) {
         printf("Failed to init LibVMI library for Backup VM.\n");
             return 1;
