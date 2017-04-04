@@ -327,7 +327,7 @@ static int process_page_data(struct xc_sr_context *ctx, unsigned count,
 	    page_data += PAGE_SIZE;
     }
 
-    fprintf(stderr, "SR: restore: nr pages different: %u\n", page_diff);
+    //fprintf(stderr, "SR: restore: nr pages different: %u\n", page_diff);
 done:
     rc = 0;
 
