@@ -55,7 +55,7 @@ run-wrk ()
     echo -e "Running wrk"
     for i in `seq 1 20`;
     do
-        con=$(( $i*500 ))
+        con=$(( $i*50 ))
         wrk -c $con -t 24 -d $DURATION http://$VM > $run$con.out
     done
 }
@@ -96,7 +96,22 @@ get-remus-results ()
 
 scp-all-results ()
 {
-    scp $DIR/$BENCH-{*.txt,*.out,*.pdf} sunnyraj@laptop:~/Dropbox/autobench/nn42/
+	# I copy the results over to my laptop. This won't work for you. If you want
+	# make an entry in /etc/hosts with an ip corresponding to the name "laptop".
+    #scp $DIR/$BENCH-{*.txt,*.out,*.pdf} sunnyraj@laptop:~/Dropbox/$BENCH/nn42/
+    scp $DIR/*.txt sunnyraj@laptop:~/Dropbox/$BENCH/nn42/
+}
+
+get-wrk-results ()
+{
+	cd $DIR
+	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "Requests/sec" wrk-*-localhost-"$net"*.out`) | sort  -k1,1n -k2,2n > throughput.tmp
+	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "Latency" wrk-*-localhost-"$net"*.out | awk '{print $1 $2 $3}'`) | sort  -k1,1n -k2,2n | awk '{print $3}' > latency.tmp
+	paste -d" " throughput.tmp latency.tmp > wrk.txt
+	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "sr_resume" wrk-*-localhost-"$net".txt`) | awk '{print $1" "$3}' | sort  -k1,1n -k2,2n > time.tmp
+	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "Dirty" wrk-*-localhost-"$net".txt`) | awk '{print $1" "$3}' | sort  -k1,1n -k2,2n | awk '{print $2}' > dirty.tmp
+	paste -d" " time.tmp dirty.tmp > remus.txt
+	rm -f *.tmp
 }
 
 while getopts ":d:s:n:b:i:t:" opt
@@ -126,9 +141,9 @@ for interval in "${INTS[@]}"; do
 
     run=$DIR/$BENCH-$interval-$host-$net
 
-    run-remus $interval
+    #run-remus $interval
 
-    get-remus-results
+    #get-remus-results
 
     if [ $BENCH == "autobench" ]
     then
@@ -137,5 +152,10 @@ for interval in "${INTS[@]}"; do
     fi
 
 done
+
+if [ $BENCH == "wrk" ]
+then
+	get-wrk-results
+fi
 
 scp-all-results
