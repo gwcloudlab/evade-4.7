@@ -217,6 +217,7 @@ struct xc_sr_context
             int read_mfns;
             uint32_t bckp_domid;
             unsigned long *bckp_mfns;
+            unsigned long *primary_mfns;
 
         } save;
 
