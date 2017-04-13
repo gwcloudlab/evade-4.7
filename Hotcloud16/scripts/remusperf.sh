@@ -52,11 +52,30 @@ run-autobench ()
 
 run-wrk ()
 {
-    echo -e "Running wrk"
-    for i in `seq 1 20`;
+    INDEX="http://$VM"
+    PHP="http://$VM/php/overdue"
+    for i in `seq 1 1`;
     do
         con=$(( $i*50 ))
-        wrk -c $con -t 24 -d $DURATION http://$VM > $run$con.out
+        tail -f $run.remus > $run-$con.log &
+        last_pid=$!
+        echo -e "Running wrk with $con connections for $DURATION seconds"
+        wrk -c $con -t 24 -d $DURATION $INDEX > $run$con.out
+        sudo kill -KILL $last_pid
+    done
+}
+
+run-parsec ()
+{
+    local interval=$1
+    for p in "${PARSEC[@]}"; do
+        tail -f $run.remus > $run-$p.log &
+        last_pid=$!
+        echo -e "Running parsec.$p"
+        ssh root@suse-web "cd /root/parsec-3.0; source env.sh; \
+            parsecmgmt -a run -p '$p' -i native" \
+            > $DIR/parsec-"$p"-n-"$interval".out
+        sudo kill -KILL $last_pid
     done
 }
 
@@ -66,13 +85,13 @@ run-remus ()
     echo $interval $VM $host $net
     if [ "$net" == "netbuf" ]
     then
-        sudo xl -vvvv remus -Fd -i $interval $VM $host > $run.log 2>&1 &
+        sudo xl -vvvv remus -Fd -i $interval $VM $host > $run.remus 2>&1 &
     else
-        sudo xl -vvvv remus -Fnd -i $interval $VM $host > $run.log 2>&1 &
+        sudo xl -vvvv remus -Fnd -i $interval $VM $host > $run.remus 2>&1 &
     fi
     # Let remus finish live migration before starting the benchmark
     sleep 15
-    echo -e "started remus"
+    echo -e "started remus with interval $interval"
     #sudo xentop -b -d 1 > $DIR/remus-$BENCH-$interval-$host-$net.xentop &
     run-$BENCH $interval
     #sudo pkill xentop
@@ -91,7 +110,12 @@ plot-graph ()
 
 get-remus-results ()
 {
-    python print_statistics.py $run.log >> $run.txt
+    cd $DIR
+    for file in $BENCH*.log
+    do
+        python $EXP/print_statistics.py $file > $file.txt
+    done
+    cd $OLDPWD
 }
 
 scp-all-results ()
@@ -99,7 +123,7 @@ scp-all-results ()
 	# I copy the results over to my laptop. This won't work for you. If you want
 	# make an entry in /etc/hosts with an ip corresponding to the name "laptop".
     #scp $DIR/$BENCH-{*.txt,*.out,*.pdf} sunnyraj@laptop:~/Dropbox/$BENCH/nn42/
-    scp $DIR/*.txt sunnyraj@laptop:~/Dropbox/$BENCH/nn42/
+    scp $DIR/*.txt sunnyraj@laptop:~/Dropbox/Research-Papers/xp_results/$BENCH/nn42/
 }
 
 get-wrk-results ()
@@ -108,10 +132,26 @@ get-wrk-results ()
 	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "Requests/sec" wrk-*-localhost-"$net"*.out`) | sort  -k1,1n -k2,2n > throughput.tmp
 	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "Latency" wrk-*-localhost-"$net"*.out | awk '{print $1 $2 $3}'`) | sort  -k1,1n -k2,2n | awk '{print $3}' > latency.tmp
 	paste -d" " throughput.tmp latency.tmp > wrk.txt
-	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "sr_resume" wrk-*-localhost-"$net".txt`) | awk '{print $1" "$3}' | sort  -k1,1n -k2,2n > time.tmp
-	paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' <<< `grep "Dirty" wrk-*-localhost-"$net".txt`) | awk '{print $1" "$3}' | sort  -k1,1n -k2,2n | awk '{print $2}' > dirty.tmp
-	paste -d" " time.tmp dirty.tmp > remus.txt
-	rm -f *.tmp
+    rm -f *.tmp
+    cd $OLDPWD
+}
+
+get-parsec-results ()
+{
+    cd $DIR
+    for p in "${PARSEC[@]}"; do
+        paste -sd ' '' '' ''\n' <(grep -Po '\d+' <<< `grep real *$p*.out`) \
+            | awk '{print $1" "($2*60)+$3"."$4}' | sort -n > parsec-$p.txt
+        paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' \
+            <<< `grep "sr_resume" *$p*.txt`) \
+            | awk '{print $1" "$3}' | sort  -k1,1n -k2,2n > time.tmp
+        paste -sd ' '' ''\n' <(grep -Po '\d+(\.\d+)?' \
+            <<< `grep "Dirty" *$p*.txt`) \
+            | awk '{print $1" "$3}' | sort  -k1,1n -k2,2n \
+            | awk '{print $2}' > dirty.tmp
+        paste -d" " time.tmp dirty.tmp > remus-parsec-$p.txt
+    done
+    cd $OLDPWD
 }
 
 while getopts ":d:s:n:b:i:t:" opt
@@ -131,19 +171,21 @@ done
 shift $(( $OPTIND - 1 ))
 (( $# )) && usage
 
-DT=$(date +"%y-%m-%d")
+DT="17-04-11"
+#DT=$(date +"%y-%m-%d")
 HOME='/home/sundarcs'
 mkdir -p $HOME/evade-4.7/Hotcloud16/exp/$DT/$VM
 #ssh sundarcs@10.0.0.42 "mkdir -p $BENCH"
 DIR=$HOME/evade-4.7/Hotcloud16/exp/$DT/$VM
-
+EXP=$HOME/evade-4.7/Hotcloud16/scripts
+PARSEC=(dedup raytrace vips facesim \
+    blackscholes swaptions splash2x.radiosity \
+    x264 netstreamcluster fluidanimate)
 for interval in "${INTS[@]}"; do
 
     run=$DIR/$BENCH-$interval-$host-$net
 
-    #run-remus $interval
-
-    #get-remus-results
+    run-remus $interval
 
     if [ $BENCH == "autobench" ]
     then
@@ -153,9 +195,8 @@ for interval in "${INTS[@]}"; do
 
 done
 
-if [ $BENCH == "wrk" ]
-then
-	get-wrk-results
-fi
+get-remus-results
 
-scp-all-results
+get-$BENCH-results
+
+#scp-all-results
