@@ -121,7 +121,8 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
 
     assert(nr_pfns != 0);
     /* Mfns of the batch pfns. */
-    mfns = malloc(nr_pfns * sizeof(*mfns));
+    ctx->save.primary_mfns = malloc(nr_pfns * sizeof(*ctx->save.primary_mfns));
+    //mfns = malloc(nr_pfns * sizeof(*mfns));
     /* Errors from attempting to map the gfns for primary. */
     errors = malloc(nr_pfns * sizeof(*errors));
     /* Errors from attempting to map the gfns for backup. */
@@ -130,11 +131,11 @@ static int map_primary_and_backup(struct xc_sr_context *ctx)
 
     for ( pfn = 0; pfn < nr_pfns; ++pfn )
     {
-        mfns[pfn] = ctx->save.ops.pfn_to_gfn(ctx, pfn);
+        ctx->save.primary_mfns[pfn] = ctx->save.ops.pfn_to_gfn(ctx, pfn);
     }
 
     ctx->save.primary_guest_mapping = xenforeignmemory_map(xch->fmem,
-        ctx->domid, PROT_READ, nr_pfns, mfns, errors);
+        ctx->domid, PROT_READ, nr_pfns, ctx->save.primary_mfns, errors);
 
     if ( !ctx->save.primary_guest_mapping )
     {
@@ -220,8 +221,9 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
 
     for ( i = 0; i < nr_pfns; ++i )
     {
-        types[i] = mfns[i] = ctx->save.ops.pfn_to_gfn(ctx,
-                                                      ctx->save.batch_pfns[i]);
+        //types[i] = mfns[i] = ctx->save.ops.pfn_to_gfn(ctx,
+        //                                              ctx->save.batch_pfns[i]);
+        types[i] = mfns[i] = ctx->save.primary_mfns[ctx->save.batch_pfns[i]];
         dirtied_bckp_mfns[i] = ctx->save.bckp_mfns[ctx->save.batch_pfns[i]];
 
         // Likely a ballooned page.
