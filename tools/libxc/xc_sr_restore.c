@@ -7,7 +7,7 @@
 /* Change this to work with bigger VMs *
  * MAX_P2M_SIZE = VM_mem_size * 1024/4 *
  * For a 512MB VM, 512 * 256 = 131072. */
-#define MAX_P2M_SIZE 262144
+#define MAX_P2M_SIZE 524288
 
 unsigned SENT_MFNS = 0, ITER = 0;
 xen_pfn_t *mfns_to_be_sent;
