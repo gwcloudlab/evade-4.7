@@ -129,6 +129,8 @@ static int write_batch(struct xc_sr_context *ctx)
 
     assert(nr_pfns != 0);
 
+    DPRINTF("Time at sr_bitmap_scan %lld ns", ns_timer());
+
     /* Mfns of the batch pfns. */
     mfns = malloc(nr_pfns * sizeof(*mfns));
     /* Types of the batch pfns. */
@@ -170,7 +172,7 @@ static int write_batch(struct xc_sr_context *ctx)
     }
     rc = -1;
 
-    DPRINTF("Time at sr_wb_a %lld ns", ns_timer());
+    DPRINTF("Time at sr_mapping %lld ns", ns_timer());
 
     for ( i = 0; i < nr_pfns; ++i )
     {
@@ -185,8 +187,6 @@ static int write_batch(struct xc_sr_context *ctx)
         mfns[nr_pages++] = mfns[i];
     }
 
-    DPRINTF("Time at sr_wb_b %lld ns", ns_timer());
-
     if ( nr_pages > 0 )
     {
         guest_mapping = xenforeignmemory_map(xch->fmem,
@@ -197,8 +197,6 @@ static int write_batch(struct xc_sr_context *ctx)
             goto err;
         }
         nr_pages_mapped = nr_pages;
-
-        DPRINTF("Time at sr_wb_c %lld ns", ns_timer());
 
         for ( i = 0, p = 0; i < nr_pfns; ++i )
         {
@@ -298,7 +296,9 @@ static int write_batch(struct xc_sr_context *ctx)
     assert(nr_pages == 0);
     rc = ctx->save.nr_batch_pfns = 0;
 
-    DPRINTF("Time at sr_wb_d %lld ns", ns_timer());
+    /* This should actually be writev but for consistency purposes *
+     * it can be memcpy. */
+    DPRINTF("Time at sr_memcpy %lld ns", ns_timer());
 
  err:
     free(rec_pfns);
