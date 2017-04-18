@@ -198,6 +198,8 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     unsigned nr_pfns = ctx->save.nr_batch_pfns;
     void *page, *orig_page;
 
+    DPRINTF("Time at sr_bitmap_scan %lld ns", ns_timer());
+
     assert(nr_pfns != 0);
     /* Types of the batch pfns. */
     types = malloc(nr_pfns * sizeof(*types));
@@ -242,7 +244,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     }
     rc = -1;
 
-    DPRINTF("Time at sr_wb_a %lld ns", ns_timer());
+    DPRINTF("Time at sr_mapping %lld ns", ns_timer());
 
     for ( i = 0; i < nr_pfns; ++i )
     {
@@ -259,13 +261,9 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
         ++nr_pages;
     }
 
-    DPRINTF("Time at sr_wb_b %lld ns", ns_timer());
-
     if ( nr_pages > 0 )
     {
         nr_pages_mapped = nr_pages;
-
-        DPRINTF("Time at sr_wb_c %lld ns", ns_timer());
 
         for ( i = 0, p = 0; i < nr_pfns; ++i )
         {
@@ -313,7 +311,7 @@ static int memcpy_write_batch(struct xc_sr_context *ctx)
     assert(nr_pages == 0);
     rc = ctx->save.nr_batch_pfns = 0;
 
-    DPRINTF("Time at sr_wb_d %lld ns", ns_timer());
+    DPRINTF("Time at sr_memcpy %lld ns", ns_timer());
 
 err:
     for ( i = 0; local_pages && i < nr_pfns; ++i )
