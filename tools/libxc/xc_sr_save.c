@@ -172,8 +172,6 @@ static int write_batch(struct xc_sr_context *ctx)
     }
     rc = -1;
 
-    DPRINTF("Time at sr_mapping %lld ns", ns_timer());
-
     for ( i = 0; i < nr_pfns; ++i )
     {
         switch ( types[i] )
@@ -191,6 +189,8 @@ static int write_batch(struct xc_sr_context *ctx)
     {
         guest_mapping = xenforeignmemory_map(xch->fmem,
             ctx->domid, PROT_READ, nr_pages, mfns, errors);
+        DPRINTF("Time at sr_mapping %lld ns", ns_timer());
+
         if ( !guest_mapping )
         {
             PERROR("Failed to map guest pages");
