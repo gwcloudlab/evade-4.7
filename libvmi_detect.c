@@ -18,7 +18,10 @@
 #include <libvmi/libvmi.h>
 
 //#include "./xc_pipe.h"
+#include <time.h>
+#include <sys/time.h>
 
+struct timeval tv;
 
 struct vmi_requirements
 {
@@ -30,7 +33,7 @@ struct vmi_requirements
 int main (char** argv, int argc)
 {
     struct vmi_requirements vmi_req;
-    char* name = "suse-web";      /* Change the name to your VM */
+    char* name = "opensuse64";      /* Change the name to your VM */
     vmi_instance_t vmi;
     char* bckup_name = "machine";
     vmi_instance_t bckup_vmi;
@@ -38,8 +41,10 @@ int main (char** argv, int argc)
     int a = 1;
     int b = 0;
 
+    unsigned long long time;
+
     unsigned long pid;
-    pid = 2517;                     /* Add the pid of the process */
+    pid = 4896;                     /* Add the pid of the process */
     int *t = malloc(sizeof(int));
     int *f = malloc(sizeof(int));
     t = &a;
@@ -55,9 +60,9 @@ int main (char** argv, int argc)
     int vmi_write_fd;            //Linux Pipe 2
     int write_event_setup_fd;
 
-    char *write_event_setup_ff = "/tmp/event_to_restore";
-    char * vmi_read_ff = "/tmp/xen_to_vmi";        //Linux Pipe
-    char * vmi_write_ff = "/tmp/vmi_to_xen";
+    char *write_event_setup_ff = "/home/harpreet10oct/event_to_restore";
+    char * vmi_read_ff = "/home/harpreet10oct/xen_to_vmi";        //Linux Pipe
+    char * vmi_write_ff = "/home/harpreet10oct/vmi_to_xen";
     uint64_t *buf = malloc(sizeof(uint64_t));
 
     mkfifo(vmi_read_ff, 0666);        //Create Pipe 1
@@ -94,17 +99,23 @@ int main (char** argv, int argc)
 	/*
          * Read Canary from address canary_address[0]
          */
-	ret_count = vmi_read_addr_va(vmi, canary_address[0], pid, &canary);
-    	printf("The value inside canary address: %lu is: %lu\n", *canary_address, canary);
+//	ret_count = vmi_read_addr_va(vmi, canary_address[0], pid, &canary);
+//    	printf("The value inside canary address: %lu is: %lu\n", *canary_address, canary);
+
+	canary = *canary_address;
 
 	if (canary != 100)
         {
-	    printf("Wrong canary detected\n");
+	    gettimeofday(&tv, NULL);
+	    time = tv.tv_sec * 1000000 + tv.tv_usec;
+	    printf("Wrong canary detected at time %llu\n", (unsigned long long) time);
+
+//	    printf("Wrong canary detected\n");
 #ifndef DEB
-            write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+            write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
 	    fprintf(stderr, "Overflow encountered!!\n");
             fsync(vmi_write_fd);
-//	    break;
+	    break;
 #endif
 	}
  	else
@@ -115,17 +126,21 @@ int main (char** argv, int argc)
 	}
 
 	canary = 0;
-	ret_count = vmi_read_addr_va(vmi, canary_address[0] + 34, pid, &canary);
-    	printf("The value inside canary address: %lu is: %lu\n", canary_address[0] + 34, canary);
+	ret_count = vmi_read_addr_va(vmi, /*canary_address[0]*/vaddr1 + 34, pid, canary_address);
+    	printf("The value inside canary address: %lu is: %lu\n", /*canary_address[0]*/vaddr1 + 34, *canary_address);
 
+	canary = *canary_address;
 	if (canary != 100)
         {
-	    printf("Wrong canary detected\n");
+	    gettimeofday(&tv, NULL);
+	    time = tv.tv_sec * 1000000 + tv.tv_usec;
+	    printf("Wrong canary detected at time %llu\n", (unsigned long long) time);
+//	    printf("Wrong canary detected\n");
 #ifndef DEB
-            write(vmi_write_fd, t, sizeof(int));             //Write to Pipe 2
+            write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
 	    fprintf(stderr, "Overflow encountered!!\n");
             fsync(vmi_write_fd);
-//	        break;
+            break;
 #endif
 	}
  	else

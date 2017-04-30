@@ -1,1 +1,1 @@
-gcc -o libvmi.o libvmi_detect.c -lvmi -lm
+gcc -o libvmi.o libvmi_detect.c -lvmi -lm -g
