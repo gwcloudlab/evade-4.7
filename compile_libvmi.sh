@@ -1,1 +1,1 @@
-gcc -o libvmi.o libvmi_detect.c -lvmi -lm -g
+gcc libvmi_detect.c `pkg-config --cflags --libs glib-2.0 libvmi` -g -lm -o libvmi.o

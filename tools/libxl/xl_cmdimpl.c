@@ -42,6 +42,7 @@
 #include "libxlutil.h"
 #include "xl.h"
 
+int pass = 0;
 /* For calls which return an errno on failure */
 #define CHK_ERRNOVAL( call ) ({                                         \
         int chk_errnoval = (call);                                      \
@@ -4807,6 +4808,23 @@ static void migrate_receive(int debug, int daemonize, int monitor,
         if (migration_domname) {
             rc = libxl_domain_rename(ctx, domid, migration_domname,
                                      common_domname);
+
+            if(pass)
+            {
+                read_event_setup_fd = open(read_event_setup_ff, O_RDONLY);
+                fprintf(stderr, "PIPE: Opening file descriptor\n");
+                fprintf(stderr, "PIPE: Reading if event monitoring is set-up\n");
+                ret = read(read_event_setup_fd, tf, sizeof(int));
+                fprintf(stderr, "PIPE: Event monitoring is set-up\n");
+
+    //            fprintf(stderr, "Sleeping for 10 seconds\n");
+    //            sleep(10);
+
+                close(read_event_setup_fd);
+                unlink(read_event_setup_ff);
+            }
+            pass = 1;
+
             if (rc)
                 fprintf(stderr, "migration target (%s): "
                         "Failed to rename domain from %s to %s:%d\n",
