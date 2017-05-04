@@ -555,7 +555,9 @@ static void libxl__colo_restore_domain_resume_callback(void *data)
     if (crcs->teardown_devices)
         colo_send_svm_ready(shs->egc, crcs);
     else
+    {
         colo_restore_resume_vm(shs->egc, crcs);
+    }
 }
 
 static void colo_send_svm_ready(libxl__egc *egc,
