@@ -89,7 +89,7 @@ int main(int argc, char **argv)
             pid,
             vm_name);
 
-    fprintf(stdout, "[TIMESTAMP] Received vaddr, initializing VMI. %lld ns", ns_timer());
+    fprintf(stdout, "[TIMESTAMP] Received vaddr, initializing VMI. %lld ns\n", ns_timer());
 
     status = vmi_init(&vmi,
                       (VMI_XEN | VMI_INIT_COMPLETE | VMI_INIT_EVENTS),
@@ -134,7 +134,7 @@ int main(int argc, char **argv)
         goto cleanup;
     }
 
-    fprintf(stdout, "[TIMESTAMP] VMI and event handler setup, resuming VM. %lld ns", ns_timer());
+    fprintf(stdout, "[TIMESTAMP] VMI and event handler setup, resuming VM. %lld ns\n", ns_timer());
 
     status = vmi_resume_vm(vmi);
     if (status == VMI_FAILURE) {
@@ -169,7 +169,7 @@ mem_event_cb(vmi_instance_t vmi, vmi_event_t *event)
 {
     status_t status = VMI_SUCCESS;
 
-    fprintf(stdout, "[TIMESTAMP] Mem event found on vaddr. %lld ns", ns_timer());
+    fprintf(stdout, "[TIMESTAMP] Mem event found on vaddr. %lld ns\n", ns_timer());
 
     print_mem_event(event);
 
