@@ -15,17 +15,19 @@
 #include <signal.h>
 
 #include <libvmi/libvmi.h>
-#include <libvmi/events.h>
+//#include <libvmi/events.h>
 
 //#include "./xc_pipe.h"
 #include <time.h>
 #include <sys/time.h>
 
 #define COUNT 2
-#define write_event_setup_ff "/home/harpreet10oct/event_to_restore"
-#define vmi_read_ff "/home/harpreet10oct/xen_to_vmi"
-#define vmi_write_ff "/home/harpreet10oct/vmi_to_xen"
 
+#define write_event_setup_ff "/home/neel/event_to_restore"
+#define vmi_read_ff "/home/neel/xen_to_vmi"
+#define vmi_write_ff "/home/neel/vmi_to_xen"
+
+#if 0
 static int interrupted = 0;
 static int mem_cb_count = 0;
 
@@ -36,6 +38,7 @@ vmi_event_t mem_event;
 
 event_response_t mem_event_cb(vmi_instance_t vmi, vmi_event_t *event);
 event_response_t step_cb(vmi_instance_t vmi, vmi_event_t *event);
+#endif
 
 struct timeval tv;
 
@@ -57,7 +60,8 @@ int main (int argc, char **argv)
     int ret_count;
     int a = 1;
     int b = 0;
-    struct sigaction act;
+    addr_t vaddr1 = 0;
+//    struct sigaction act;
 
 fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n", argc, argv[0], argv[1], argv[2], argv[3]);
 
@@ -70,6 +74,7 @@ fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n
     bckup_name = argv[2];
     pid = strtoul(argv[3], NULL, 10);
 
+/*
     act.sa_handler = close_handler;
     act.sa_flags = 0;
     sigemptyset(&act.sa_mask);
@@ -78,6 +83,7 @@ fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n
     sigaction(SIGINT,   &act, NULL);
     sigaction(SIGALRM,  &act, NULL);
     sigaction(SIGKILL,  &act, NULL);
+*/
 
 
     int *t = malloc(sizeof(int));
@@ -120,7 +126,7 @@ fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n
 
         vmi_req.st_addr = buf;
 
-        addr_t vaddr1 = *(vmi_req.st_addr);
+        vaddr1 = *(vmi_req.st_addr);
 
         /*
          * Read the address at the starting address of the canary_list
@@ -210,16 +216,31 @@ fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n
 
     write(vmi_write_fd, f, sizeof(int));             //Write to Pipe 2
     fprintf(stderr, "Overflow encountered!!\n");
-    printf("Look at canary address %lu\n", *canary_address);
+    printf("Look at canary address %lu\n", (vaddr1 + 34)/**canary_address*/);
     fsync(vmi_write_fd);
+
+    uint64_t vaddr = vaddr1 + 34;
 
     vmi_destroy(vmi);
 
-    close(vmi_read_fd);
-    close(vmi_write_fd);
+//    close(vmi_read_fd);
+//    close(vmi_write_fd);
+//
+//    unlink(vmi_read_ff);
 
-    unlink(vmi_read_ff);
+    /*
+     * TODO:
+     *  1) send to mem-events name of VM and canary address
+     */
 
+    write_event_setup_fd = open(write_event_setup_ff, O_WRONLY);
+    write(write_event_setup_fd, &vaddr, sizeof(uint64_t));             //Write to Pipe 3
+    printf("Giving address to event monitoring code\n");
+    fsync(vmi_write_fd);
+
+    return 0;
+
+#if 0
     /*
      * set-up VMI event monitoring here
      */
@@ -227,7 +248,6 @@ fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n
     status_t status = VMI_SUCCESS;
     vmi = NULL;
 
-    write_event_setup_fd = open(write_event_setup_ff, O_WRONLY);
     status = vmi_init(&vmi,
                       //(VMI_XEN | VMI_INIT_PARTIAL | VMI_INIT_EVENTS),
                       (VMI_XEN | VMI_INIT_COMPLETE | VMI_INIT_EVENTS),
@@ -317,8 +337,10 @@ cleanup:
     }
 
     return status;
+#endif
 }
 
+#if 0
 event_response_t
 mem_event_cb(vmi_instance_t vmi, vmi_event_t *event)
 {
@@ -384,3 +406,4 @@ static void close_handler(int sig)
 {
     interrupted = sig;
 }
+#endif
