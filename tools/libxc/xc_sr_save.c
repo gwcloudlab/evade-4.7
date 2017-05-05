@@ -29,7 +29,7 @@ unsigned nr_end_checkpoint = 0;
 struct timeval tv;
 
 /* LibVMI related variables */
-//#define ENABLE_LIBVMI  //comment to disable VMI
+#define ENABLE_LIBVMI  //comment to disable VMI
 int counter = 1;
 int buf;
 int xen_write_fd = 0;             //Linux Pipe 1
@@ -913,7 +913,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = 36827192;//(uint64_t) strtoul(start_addr, NULL, 20);    /* Have to get the address printed in the malloc code */
+    *(vmi_req.st_addr) = 20500536;//(uint64_t) strtoul(start_addr, NULL, 20);    /* Have to get the address printed in the malloc code */
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 /*
     DPRINTF("End Address: %s\n", end_addr);

@@ -4756,6 +4756,17 @@ static void migrate_receive(int debug, int daemonize, int monitor,
     const char *ha = checkpointed == LIBXL_CHECKPOINTED_STREAM_COLO ?
                      "COLO" : "Remus";
 
+    int ret;
+    int read_event_setup_fd;
+    char *read_event_setup_ff = "/home/harpreet10oct/event_to_restore";
+
+    fprintf(stderr, "PIPE: Creating the pipe\n");
+    mkfifo(read_event_setup_ff, 0666);
+    fprintf(stderr, "PIPE: Pipe created\n");
+
+    int *tf = malloc(sizeof(int));
+
+
     signal(SIGPIPE, SIG_IGN);
     /* if we get SIGPIPE we'd rather just have it as an error */
 

@@ -22,9 +22,9 @@
 #include <sys/time.h>
 
 #define COUNT 2
-#define write_event_setup_ff "/tmp/event_to_restore"
-#define vmi_read_ff "/tmp/xen_to_vmi"
-#define vmi_write_ff "/tmp/vmi_to_xen"
+#define write_event_setup_ff "/home/harpreet10oct/event_to_restore"
+#define vmi_read_ff "/home/harpreet10oct/xen_to_vmi"
+#define vmi_write_ff "/home/harpreet10oct/vmi_to_xen"
 
 static int interrupted = 0;
 static int mem_cb_count = 0;
@@ -45,7 +45,7 @@ struct vmi_requirements
     uint64_t *en_addr;
 };
 
-int main (char** argv, int argc)
+int main (int argc, char **argv)
 {
     struct vmi_requirements vmi_req;
     char* name = NULL;
@@ -59,8 +59,12 @@ int main (char** argv, int argc)
     int b = 0;
     struct sigaction act;
 
-    if (argc < 4)
-        fprintf(stderr, "Usage: libvmi_detect <name of VM> <name of backup> <pid of proc in vm>\n"), exit(1);
+fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n", argc, argv[0], argv[1], argv[2], argv[3]);
+
+    if (argc < 4) {
+        fprintf(stderr, "Usage: libvmi_detect <name of VM> <name of backup> <pid of proc in vm>\n");
+        exit(1);
+    }
 
     name = argv[1];
     bckup_name = argv[2];
@@ -97,7 +101,6 @@ int main (char** argv, int argc)
     canary_address = malloc(sizeof(uint64_t) * 20);
     vmi_read_fd = open(vmi_read_ff, O_RDONLY);      //Open Pipe 1 for Read
     vmi_write_fd = open(vmi_write_ff, O_WRONLY);      //open Pipe 2 for Write
-    write_event_setup_fd = open(write_event_setup_ff, O_WRONLY);
 
     if (vmi_init(&vmi, VMI_AUTO | VMI_INIT_COMPLETE, name) == VMI_FAILURE) {
         printf("Failed to init LibVMI library.\n");
@@ -224,10 +227,11 @@ int main (char** argv, int argc)
     status_t status = VMI_SUCCESS;
     vmi = NULL;
 
+    write_event_setup_fd = open(write_event_setup_ff, O_WRONLY);
     status = vmi_init(&vmi,
                       //(VMI_XEN | VMI_INIT_PARTIAL | VMI_INIT_EVENTS),
                       (VMI_XEN | VMI_INIT_COMPLETE | VMI_INIT_EVENTS),
-                      name
+                      bckup_name
                       );
     if (status == VMI_FAILURE)
     {
