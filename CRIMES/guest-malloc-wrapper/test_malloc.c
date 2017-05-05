@@ -105,8 +105,14 @@ int main()
         int size16 = sizeof(ptr16);
 //        int size16 = sizeof(ptr16);
 
+        fprintf(stdout, "\n$$$ Buffers allocated, ready to be hacked!\n");
+
         DEBUG_PAUSE();
 
+        int count = 0;
+        while (count++ <= 5000) {
+            usleep(1000);
+        }
 
         exploit(ptr1);
 //        free(ptr);

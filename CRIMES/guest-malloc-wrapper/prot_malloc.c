@@ -31,7 +31,7 @@ static void write_to_file(void *canary_address)
   */
     canary_list[counter++] = (unsigned long)canary_address;
     printf("The address inside canary_list at index %d is %lu\n", counter - 1, (unsigned long) canary_list[counter - 1]);
-    sleep(5);
+    //sleep(5);
     return;
 }
 
