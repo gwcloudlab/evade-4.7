@@ -759,7 +759,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = 31326264;//(uint64_t) strtoul(start_addr, NULL, 16);
+    *(vmi_req.st_addr) = 35909688;//(uint64_t) strtoul(start_addr, NULL, 16);
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 
     DPRINTF("End Address: %s\n", end_addr);

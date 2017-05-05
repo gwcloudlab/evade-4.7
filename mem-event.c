@@ -62,7 +62,14 @@ main(
     struct sigaction act;
     //char* vm_name = NULL;
     char* vm_name = "machine";
-    addr_t phys_addr = 0ULL;
+    addr_t phys_addr;
+
+//    status = vmi_pause_vm(vmi);
+//    if (status == VMI_FAILURE)
+//    {
+//        fprintf(stdout, "Failed to pause VM...DIE!\n");
+//        goto cleanup;
+//    }
 
 //    if (argc < 3)
 //    {
@@ -96,22 +103,6 @@ main(
     sigaction(SIGALRM,  &act, NULL);
     sigaction(SIGKILL,  &act, NULL);
 
-    status = vmi_init(
-                &vmi,
-                (VMI_XEN | VMI_INIT_PARTIAL | VMI_INIT_EVENTS),
-                //(VMI_XEN | VMI_INIT_COMPLETE | VMI_INIT_EVENTS),
-                vm_name
-                );
-    if (status == VMI_FAILURE)
-    {
-        fprintf(stdout, "Failed to init LibVMI! :(\n");
-        return 1;
-    }
-    else
-    {
-        fprintf(stdout, "LibVMI init success! :)\n");
-    }
-
 //    status = vmi_pause_vm(vmi);
 //    if (status == VMI_FAILURE)
 //    {
@@ -128,6 +119,37 @@ main(
             );
 
     memset(&mem_event, 0, sizeof(vmi_event_t));
+
+    int read_vm_renamed_fd; 
+    int *tf = malloc(sizeof(int));
+    #define read_vm_renamed_ff "/home/harpreet10oct/vm_renamed"
+
+    fprintf(stderr, "PIPE: Creating the pipe\n"); 
+    mkfifo(read_vm_renamed_ff, 0666);
+    fprintf(stderr, "PIPE: Pipe created\n");
+
+    read_vm_renamed_fd = open(read_vm_renamed_ff, O_RDONLY);
+    fprintf(stderr, "PIPE: Opened file descriptor\n");
+
+    read(read_vm_renamed_fd, tf, sizeof(int));
+
+    fprintf(stderr, "PIPE: Read %d from Restore side. VM renamed.\n", *tf);
+
+    status = vmi_init(
+                &vmi,
+                (VMI_XEN | VMI_INIT_PARTIAL | VMI_INIT_EVENTS),
+                //(VMI_XEN | VMI_INIT_COMPLETE | VMI_INIT_EVENTS),
+                vm_name
+                );
+    if (status == VMI_FAILURE)
+    {
+        fprintf(stdout, "Failed to init LibVMI! :(\n");
+        return 1;
+    }
+    else
+    {
+        fprintf(stdout, "LibVMI init success! :)\n");
+    }
 
     SETUP_MEM_EVENT(&mem_event,
                     phys_addr >> 12,

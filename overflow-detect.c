@@ -219,6 +219,8 @@ fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n
     printf("Look at canary address %lu\n", (vaddr1 + 34)/**canary_address*/);
     fsync(vmi_write_fd);
 
+    uint64_t vaddr = vaddr1 + 34;
+
     vmi_destroy(vmi);
 
 //    close(vmi_read_fd);
@@ -232,7 +234,7 @@ fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n
      */
 
     write_event_setup_fd = open(write_event_setup_ff, O_WRONLY);
-    write(write_event_setup_fd, (void *)(vaddr1 + 34), sizeof(uint64_t));             //Write to Pipe 3
+    write(write_event_setup_fd, &vaddr, sizeof(uint64_t));             //Write to Pipe 3
     printf("Giving address to event monitoring code\n");
     fsync(vmi_write_fd);
 
