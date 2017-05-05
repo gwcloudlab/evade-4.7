@@ -1,2 +1,2 @@
-#gcc -o libvmi.o libvmi_detect.c -lvmi -lm -g
-gcc -o pa_libvmi.o pa_libvmi_detect.c -lvmi -lm -g
+gcc overflow-detect.c `pkg-config --cflags --libs glib-2.0 libvmi` -g -lm -o overflow-detect.o
+gcc mem-event.c `pkg-config --cflags --libs glib-2.0 libvmi` -g -lm -o mem-event.o

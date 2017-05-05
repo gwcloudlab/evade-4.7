@@ -37,8 +37,8 @@ unsigned long bckp_mfns [131072] = { 0 };
 unsigned nr_end_checkpoint = 0;
 
 int counter = 1;
-char * xen_write_ff = "/home/harpreet10oct/test_dir_sample_code/xen_to_vmi";        //Linux Pipe
-char * xen_read_ff = "/home/harpreet10oct/test_dir_sample_code/vmi_to_xen";
+char * xen_write_ff = "/home/harpreet10oct/xen_to_vmi";        //Linux Pipe
+char * xen_read_ff = "/home/harpreet10oct/vmi_to_xen";
 int buf;
 int xen_write_fd = 0;             //Linux Pipe 1
 int xen_read_fd = 0;            //Linux Pipe 2
@@ -759,7 +759,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = (uint64_t) strtoul(start_addr, NULL, 16);
+    *(vmi_req.st_addr) = 31326264;//(uint64_t) strtoul(start_addr, NULL, 16);
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 
     DPRINTF("End Address: %s\n", end_addr);
@@ -794,11 +794,11 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     if (!buf && counter == 2)
     {
         fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
-        close(xen_write_fd);
-        close(xen_read_fd);
-    	unlink(xen_read_ff);
-    	free (vmi_req.st_addr);
-    	free (vmi_req.en_addr);
+//        close(xen_write_fd);
+//        close(xen_read_fd);
+//    	unlink(xen_read_ff);
+//    	free (vmi_req.st_addr);
+//    	free (vmi_req.en_addr);
         fprintf(stderr, "REMUS: Suspending domain");
         
     	return 100;
@@ -807,23 +807,23 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
     if (!buf && counter == 2)
     {
         fprintf(stderr,"REMUS: FAILING OVER HERE: %d\n", buf);
-        close(xen_write_fd);
-        close(xen_read_fd);
-    	unlink(xen_read_ff);
-    	free (vmi_req.st_addr);
-    	free (vmi_req.en_addr);
+//        close(xen_write_fd);
+//        close(xen_read_fd);
+//    	unlink(xen_read_ff);
+//    	free (vmi_req.st_addr);
+//    	free (vmi_req.en_addr);
         fprintf(stderr, "REMUS: Suspending domain");
         
     	return 100;
     }
-/*	
+#endif
+#ifdef TOGGLER	
     if (nr_end_checkpoint == 100)
         return 100;
 
     nr_end_checkpoint++;
-*/
-    counter = 2;
 #endif
+    counter = 2;
 
     if ( xc_shadow_control(
              xch, ctx->domid, XEN_DOMCTL_SHADOW_OP_CLEAN,
@@ -1077,7 +1077,8 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         if (rc == 100)
         {
             rc = system ("sudo xl pause opensuse64");    //pause the primary
-	    return 100;
+	    break;
+	    //return 100;
 	}
         if ( !ctx->dominfo.shutdown ||
              (ctx->dominfo.shutdown_reason != SHUTDOWN_suspend) )
@@ -1187,7 +1188,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
         rc = saved_rc;
         errno = saved_errno;
     }
-    
+    DPRINTF("REMUS: Value of rc is %d\n", rc); 
     return rc;
 
 };

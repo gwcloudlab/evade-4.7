@@ -4762,7 +4762,7 @@ static void migrate_receive(int debug, int daemonize, int monitor,
     
     int ret;
     int read_event_setup_fd;
-    char *read_event_setup_ff = "/home/harpreet10oct/test_dir_sample_code/event_to_restore";
+    char *read_event_setup_ff = "/home/harpreet10oct/restore_to_event";
 
     fprintf(stderr, "PIPE: Creating the pipe\n");
     mkfifo(read_event_setup_ff, 0666);
