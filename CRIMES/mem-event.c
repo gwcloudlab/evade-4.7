@@ -81,6 +81,8 @@ int main(int argc, char **argv)
 
     fprintf(stdout, "Received vaddr from buffer overflow module\n");
 
+    DEBUG_PAUSE();
+
     fprintf(stdout,
             "Attempting to monitor vaddr %lx in PID %lx on VM %s",
             vaddr,
@@ -105,8 +107,6 @@ int main(int argc, char **argv)
 //        goto cleanup;
 //    }
 
-    DEBUG_PAUSE();
-
     paddr = vmi_translate_uv2p(vmi, vaddr, pid);
     if (paddr == 0) {
         fprintf(stdout, "Failed to translate uv2p...DIE! %m\n");
@@ -128,15 +128,11 @@ int main(int argc, char **argv)
                     mem_event_cb,
                     0);
 
-    DEBUG_PAUSE();
-
     status = vmi_register_event(vmi, &mem_event);
     if (status == VMI_FAILURE) {
         fprintf(stdout, "Failed to register mem event...DIE! %m\n");
         goto cleanup;
     }
-
-    DEBUG_PAUSE();
 
     fprintf(stdout, "[TIMESTAMP] VMI and event handler setup, resuming VM. %lld ns", ns_timer());
 
@@ -145,8 +141,6 @@ int main(int argc, char **argv)
         fprintf(stdout, "Failed to resume VM...DIE! %m\n");
         goto cleanup;
     }
-
-    DEBUG_PAUSE();
 
     while (!interrupted) {
         status = vmi_events_listen(vmi, 500);
