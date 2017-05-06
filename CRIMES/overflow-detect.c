@@ -23,9 +23,9 @@
 
 #define COUNT 2
 
-#define write_event_setup_ff "/home/neel/event_to_restore"
-#define vmi_read_ff "/home/neel/xen_to_vmi"
-#define vmi_write_ff "/home/neel/vmi_to_xen"
+#define write_event_setup_ff "/home/sundarcs/event_to_restore"
+#define vmi_read_ff "/home/sundarcs/xen_to_vmi"
+#define vmi_write_ff "/home/sundarcs/vmi_to_xen"
 
 #if 0
 static int interrupted = 0;
@@ -62,8 +62,6 @@ int main (int argc, char **argv)
     int b = 0;
     addr_t vaddr1 = 0;
 //    struct sigaction act;
-
-fprintf(stdout, "argc = %d argv[0] = %s argv[1] = %s argv[2] = %s argv[3] = %s\n", argc, argv[0], argv[1], argv[2], argv[3]);
 
     if (argc < 4) {
         fprintf(stderr, "Usage: libvmi_detect <name of VM> <name of backup> <pid of proc in vm>\n");

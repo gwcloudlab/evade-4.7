@@ -913,7 +913,7 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
      *  Convert hexa address into uint64
      */
     DPRINTF("Start Address: %s\n", start_addr);
-    *(vmi_req.st_addr) = 20500536;//(uint64_t) strtoul(start_addr, NULL, 20);    /* Have to get the address printed in the malloc code */
+    *(vmi_req.st_addr) = 35090488;//(uint64_t) strtoul(start_addr, NULL, 20);    /* Have to get the address printed in the malloc code */
     DPRINTF("Starting Address in unsigned long int: %" PRIu64 "\n", *(vmi_req.st_addr));
 /*
     DPRINTF("End Address: %s\n", end_addr);
@@ -923,8 +923,8 @@ static int suspend_and_send_dirty(struct xc_sr_context *ctx)
 /*-------------------------------------------------------------------------------------*/
     if (counter == 1)
     {
-	xen_write_ff = "/home/harpreet10oct/xen_to_vmi";        //Linux Pipe
-	xen_read_ff = "/home/harpreet10oct/vmi_to_xen";
+	xen_write_ff = "/home/sundarcs/xen_to_vmi";        //Linux Pipe
+	xen_read_ff = "/home/sundarcs/vmi_to_xen";
         mkfifo(xen_read_ff, 0666);        //Create Pipe 2
         xen_write_fd = open(xen_write_ff, O_WRONLY);      //Open Pipe 1 for Write
         xen_read_fd = open(xen_read_ff, O_RDONLY);      //open Pipe 2 for Read
@@ -1236,7 +1236,7 @@ static int save(struct xc_sr_context *ctx, uint16_t guest_type)
 
         if (rc == 100)
         {
-            rc = system ("sudo xl pause opensuse64");    //pause the primary
+            rc = system ("sudo xl pause ubuntu-hvm");    //pause the primary
 	    gettimeofday(&tv, NULL);
 	    time = tv.tv_sec * 1000000 + tv.tv_usec;
 	    printf("Timestamp at which the primary is paused %llu\n", (unsigned long long) time);
